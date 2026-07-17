@@ -1,5 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { isMemoryId } from './memory-metadata.js';
 import { createRequire } from 'node:module';
 import { SCHEMA_SQL } from './schema.js';
 import { AtomicLockCoordinator } from './atomic-lock-coordinator.js';
@@ -322,6 +324,7 @@ export class DatabaseManager {
     // CHECK(target IN ('memory','user')) constraints to include 'failure'.
     this.ensureLegacySchemaColumns(db);
     this.migrateLegacyMemoriesTargetConstraint(db);
+    this.migrateMemoryIds(db);
     this.rebuildMemoryFts(db);
   }
 
@@ -669,13 +672,14 @@ export class DatabaseManager {
 
   private copyMemories(source: DatabaseLike, target: DatabaseLike): number {
     const insert = target.prepare(`
-      INSERT OR IGNORE INTO memories (id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO memories (id, memory_id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let copied = 0;
 
     for (const row of this.readTableRows(source, 'memories', [
       'id',
+      'memory_id',
       'project',
       'target',
       'category',
@@ -689,6 +693,7 @@ export class DatabaseManager {
       const id = this.integerOr(row.id, NaN);
       if (!Number.isFinite(id) || typeof row.content !== 'string') continue;
 
+      const memoryId = typeof row.memory_id === 'string' && row.memory_id.trim() ? row.memory_id : randomUUID();
       const targetName = typeof row.target === 'string' && MEMORY_TARGETS.has(row.target) ? row.target : 'memory';
       const category = typeof row.category === 'string' && MEMORY_CATEGORIES.has(row.category) ? row.category : null;
       const created = typeof row.created === 'string' ? row.created : new Date(0).toISOString();
@@ -696,6 +701,7 @@ export class DatabaseManager {
 
       insert.run(
         id,
+        memoryId,
         this.nullableString(row.project),
         targetName,
         category,
@@ -846,6 +852,9 @@ export class DatabaseManager {
 
     const names = this.getColumnNames(db, 'memories');
 
+    if (!names.has('memory_id')) {
+      db.exec('ALTER TABLE memories ADD COLUMN memory_id TEXT');
+    }
     if (!names.has('project')) {
       db.exec('ALTER TABLE memories ADD COLUMN project TEXT');
     }
@@ -897,6 +906,28 @@ export class DatabaseManager {
     }
   }
 
+  private migrateMemoryIds(db: DatabaseLike): void {
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memories'").get() as { name: string } | undefined;
+    if (!tableExists) return;
+
+    const rows = db.prepare('SELECT id, memory_id FROM memories ORDER BY id ASC').all() as Array<{ id: number; memory_id: unknown }>;
+    const used = new Set<string>();
+    const update = db.prepare('UPDATE memories SET memory_id = ? WHERE id = ?');
+    for (const row of rows) {
+      const candidate = typeof row.memory_id === 'string' ? row.memory_id.trim() : '';
+      if (isMemoryId(candidate) && !used.has(candidate)) {
+        used.add(candidate);
+        continue;
+      }
+      let next = randomUUID();
+      while (used.has(next)) next = randomUUID();
+      used.add(next);
+      update.run(next, row.id);
+    }
+
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_memory_id ON memories(memory_id)');
+  }
+
   private migrateLegacyMemoriesTargetConstraint(db: DatabaseLike): void {
     const tableSqlRow = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='memories'").get() as { sql?: string } | undefined;
     const tableSql = tableSqlRow?.sql ?? '';
@@ -913,6 +944,7 @@ export class DatabaseManager {
         db.exec(`
           CREATE TABLE memories_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id TEXT UNIQUE,
             project TEXT,
             target TEXT NOT NULL CHECK (target IN ('memory', 'user', 'failure')),
             category TEXT CHECK (category IN ('failure', 'correction', 'insight', 'preference', 'convention', 'tool-quirk')),
@@ -926,8 +958,8 @@ export class DatabaseManager {
         `);
 
         db.exec(`
-          INSERT INTO memories_new (id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
-          SELECT id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced
+          INSERT INTO memories_new (id, memory_id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
+          SELECT id, memory_id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced
           FROM memories;
         `);
 
@@ -947,6 +979,7 @@ export class DatabaseManager {
       db.exec(`
         CREATE TABLE memories_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          memory_id TEXT UNIQUE,
           project TEXT,
           target TEXT NOT NULL CHECK (target IN ('memory', 'user', 'failure')),
           category TEXT CHECK (category IN ('failure', 'correction', 'insight', 'preference', 'convention', 'tool-quirk')),
@@ -960,8 +993,8 @@ export class DatabaseManager {
       `);
 
       db.exec(`
-          INSERT INTO memories_new (id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
-          SELECT id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced
+          INSERT INTO memories_new (id, memory_id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
+          SELECT id, memory_id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced
           FROM memories;
         `);
 

@@ -1,10 +1,12 @@
 import { DatabaseManager } from './db.js';
 import { buildFallbackFts5Query, isFts5QueryError, normalizeFts5Query } from './fts-query.js';
+import { createMemoryId, isMemoryId, parseMemoryMetadata } from './memory-metadata.js';
 import { normalizeMemoryLookupText } from './memory-lookup.js';
 import type { MemoryCategory } from '../types.js';
 
 const MEMORY_SELECT_COLUMNS = `
   id,
+  memory_id,
   project,
   target,
   category,
@@ -30,6 +32,7 @@ const FAILURE_CATEGORY_SET = new Set<MemoryCategory>([
  */
 export interface SqliteMemoryEntry {
   id: number;
+  memoryId: string;
   project: string | null;
   target: 'memory' | 'user' | 'failure';
   category: MemoryCategory | null;
@@ -43,6 +46,7 @@ export interface SqliteMemoryEntry {
 
 export interface SqliteMemorySyncInput {
   content: string;
+  memoryId?: string | null;
   target: 'memory' | 'user' | 'failure';
   project?: string | null;
   category?: MemoryCategory | null;
@@ -96,8 +100,14 @@ function normalizeCategory(value?: MemoryCategory | null): MemoryCategory | null
   return value ?? null;
 }
 
+function normalizeMemoryId(value?: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return isMemoryId(trimmed) ? trimmed.toLowerCase() : null;
+}
+
 function mapRow(row: {
   id: number;
+  memory_id?: string;
   project: string | null;
   target: string;
   category: string | null;
@@ -110,6 +120,7 @@ function mapRow(row: {
 }): SqliteMemoryEntry {
   return {
     id: row.id,
+    memoryId: row.memory_id ?? '',
     project: row.project,
     target: row.target as 'memory' | 'user' | 'failure',
     category: row.category as MemoryCategory | null,
@@ -185,28 +196,8 @@ function escapeLikePattern(text: string): string {
   return text.replace(/[\\%_]/g, '\\$&');
 }
 
-function parseMetadataComment(raw: string): { text: string; created: string; lastReferenced: string; project: string | null } {
-  const match = raw.match(/^(.*?)\s*<!--\s*created=([^,]+),\s*last=([^,>]+)(?:,\s*project64=([A-Za-z0-9_-]+))?\s*-->\s*$/);
-  if (match) {
-    let project: string | null = null;
-    if (match[4]) {
-      try { project = Buffer.from(match[4], 'base64url').toString('utf-8').trim() || null; } catch {}
-    }
-    return {
-      text: match[1].trim(),
-      created: match[2].trim(),
-      lastReferenced: match[3].trim(),
-      project,
-    };
-  }
-
-  const fallback = today();
-  return {
-    text: raw.trim(),
-    created: fallback,
-    lastReferenced: fallback,
-    project: null,
-  };
+function parseMetadataComment(raw: string): { text: string; created: string; lastReferenced: string; project: string | null; memoryId: string | null } {
+  return parseMemoryMetadata(raw);
 }
 
 /**
@@ -222,17 +213,20 @@ export function addMemory(
   toolState: string | null = null,
   correctedTo: string | null = null,
   created = today(),
-  lastReferenced = created
+  lastReferenced = created,
+  memoryId = createMemoryId(),
 ): SqliteMemoryEntry {
   const db = dbManager.getDb();
+  const stableMemoryId = normalizeMemoryId(memoryId) ?? createMemoryId();
 
   const result = db.prepare(`
-    INSERT INTO memories (project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(project, target, category, content, failureReason, toolState, correctedTo, created, lastReferenced);
+    INSERT INTO memories (memory_id, project, target, category, content, failure_reason, tool_state, corrected_to, created, last_referenced)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(stableMemoryId, project, target, category, content, failureReason, toolState, correctedTo, created, lastReferenced);
 
   return {
     id: Number(result.lastInsertRowid),
+    memoryId: stableMemoryId,
     project,
     target,
     category,
@@ -277,12 +271,13 @@ export function parseMarkdownMemoryEntry(
   project: string | null = null,
 ): ParsedMarkdownMemoryEntry {
   const metadata = parseMetadataComment(rawEntry);
-  const { text, created, lastReferenced } = metadata;
+  const { text, created, lastReferenced, memoryId } = metadata;
   const parsedProject = normalizeNullable(project);
 
   if (target !== 'failure') {
     return {
       content: text,
+      memoryId,
       target,
       project: parsedProject,
       created,
@@ -317,6 +312,7 @@ export function parseMarkdownMemoryEntry(
 
   return {
     content: text,
+    memoryId,
     target: 'failure',
     project: parsedProject,
     category,
@@ -345,20 +341,11 @@ export function syncMemoryEntry(
   const correctedTo = normalizeNullable(input.correctedTo);
   const created = input.created?.trim() || today();
   const lastReferenced = input.lastReferenced?.trim() || created;
+  const memoryId = normalizeMemoryId(input.memoryId);
 
-  const params: unknown[] = [];
-  const conditions = buildScopeConditions(params, input.target, project, category);
-  conditions.push('content = ?');
-  params.push(content);
-
-  const existing = db.prepare(`
-    SELECT ${MEMORY_SELECT_COLUMNS}
-    FROM memories
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY id ASC
-    LIMIT 1
-  `).get(...params) as {
+  let existing: {
     id: number;
+    memory_id: string;
     project: string | null;
     target: string;
     category: string | null;
@@ -369,6 +356,29 @@ export function syncMemoryEntry(
     created: string;
     last_referenced: string;
   } | undefined;
+
+  if (memoryId) {
+    existing = db.prepare(`
+      SELECT ${MEMORY_SELECT_COLUMNS}
+      FROM memories
+      WHERE memory_id = ?
+      LIMIT 1
+    `).get(memoryId) as typeof existing;
+  }
+
+  if (!existing) {
+    const params: unknown[] = [];
+    const conditions = buildScopeConditions(params, input.target, project, category);
+    conditions.push('content = ?');
+    params.push(content);
+    existing = db.prepare(`
+      SELECT ${MEMORY_SELECT_COLUMNS}
+      FROM memories
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY id ASC
+      LIMIT 1
+    `).get(...params) as typeof existing;
+  }
 
   if (!existing) {
     return {
@@ -384,22 +394,28 @@ export function syncMemoryEntry(
         correctedTo,
         created,
         lastReferenced,
+        memoryId ?? createMemoryId(),
       ),
     };
   }
 
   const updatedCreated = minDate(existing.created, created);
   const updatedLastReferenced = maxDate(existing.last_referenced, lastReferenced);
-  const updatedCategory = (existing.category as MemoryCategory | null) ?? category;
-  const updatedFailureReason = existing.failure_reason ?? failureReason;
-  const updatedToolState = existing.tool_state ?? toolState;
-  const updatedCorrectedTo = existing.corrected_to ?? correctedTo;
+  const updatedCategory = category ?? existing.category;
+  const updatedFailureReason = failureReason ?? existing.failure_reason;
+  const updatedToolState = toolState ?? existing.tool_state;
+  const updatedCorrectedTo = correctedTo ?? existing.corrected_to;
+  const updatedMemoryId = memoryId ?? normalizeMemoryId(existing.memory_id) ?? createMemoryId();
 
   db.prepare(`
     UPDATE memories
-    SET category = ?, failure_reason = ?, tool_state = ?, corrected_to = ?, created = ?, last_referenced = ?
+    SET memory_id = ?, project = ?, target = ?, content = ?, category = ?, failure_reason = ?, tool_state = ?, corrected_to = ?, created = ?, last_referenced = ?
     WHERE id = ?
   `).run(
+    updatedMemoryId,
+    project,
+    input.target,
+    content,
     updatedCategory,
     updatedFailureReason,
     updatedToolState,
@@ -432,15 +448,12 @@ export function reconcileMarkdownMemoryScope(
   const reconcile = (): MarkdownMemoryReconcileResult => {
     let inserted = 0;
     let existing = 0;
-    const desiredIdentities = new Set<string>();
+    const desiredMemoryIds = new Set<string>();
 
     for (const rawEntry of rawEntries) {
       const parsed = parseMarkdownMemoryEntry(rawEntry, target, normalizedProject);
-      desiredIdentities.add(JSON.stringify([
-        normalizeCategory(parsed.category),
-        parsed.content.trim(),
-      ]));
       const result = syncMemoryEntry(dbManager, parsed);
+      desiredMemoryIds.add(result.entry.memoryId);
       if (result.action === 'inserted') inserted++;
       else existing++;
     }
@@ -448,19 +461,15 @@ export function reconcileMarkdownMemoryScope(
     const params: unknown[] = [];
     const conditions = buildScopeConditions(params, target, normalizedProject);
     const scopedRows = db.prepare(`
-      SELECT id, content, category
+      SELECT id, memory_id, content, category
       FROM memories
       WHERE ${conditions.join(' AND ')}
       ORDER BY id ASC
-    `).all(...params) as Array<{ id: number; content: string; category: MemoryCategory | null }>;
-    const retainedIdentities = new Set<string>();
+    `).all(...params) as Array<{ id: number; memory_id: string; content: string; category: MemoryCategory | null }>;
     const orphanIds: number[] = [];
     for (const row of scopedRows) {
-      const identity = JSON.stringify([normalizeCategory(row.category), row.content.trim()]);
-      if (!desiredIdentities.has(identity) || retainedIdentities.has(identity)) {
+      if (!desiredMemoryIds.has(row.memory_id)) {
         orphanIds.push(row.id);
-      } else {
-        retainedIdentities.add(identity);
       }
     }
 
@@ -831,6 +840,15 @@ export function getMemories(
 export function removeMemory(dbManager: DatabaseManager, id: number): boolean {
   const db = dbManager.getDb();
   const result = db.prepare('DELETE FROM memories WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+/**
+ * Remove a memory by its stable authoritative Memory ID.
+ */
+export function removeMemoryByMemoryId(dbManager: DatabaseManager, memoryId: string): boolean {
+  const db = dbManager.getDb();
+  const result = db.prepare('DELETE FROM memories WHERE memory_id = ?').run(memoryId);
   return result.changes > 0;
 }
 

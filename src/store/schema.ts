@@ -71,6 +71,7 @@ export const SCHEMA_SQL = `
   -- Extended memory entries (beyond MEMORY.md limit)
   CREATE TABLE IF NOT EXISTS memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_id TEXT UNIQUE,
     project TEXT,
     target TEXT NOT NULL CHECK (target IN ('memory', 'user', 'failure')),
     category TEXT CHECK (category IN ('failure', 'correction', 'insight', 'preference', 'convention', 'tool-quirk')),

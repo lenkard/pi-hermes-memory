@@ -17,6 +17,13 @@ import * as path from "node:path";
 import { scanContent } from "./content-scanner.js";
 import { normalizeMemoryLookupText } from "./memory-lookup.js";
 import {
+  createMemoryId,
+  encodeMemoryMetadata,
+  ensureMemoryEntryIds,
+  parseMemoryMetadata,
+  stripMemoryMetadata,
+} from "./memory-metadata.js";
+import {
   ENTRY_DELIMITER,
   DEFAULT_MEMORY_CHAR_LIMIT,
   DEFAULT_USER_CHAR_LIMIT,
@@ -123,9 +130,13 @@ export class MemoryStore {
     await fs.mkdir(this.memoryDir, { recursive: true });
     for (const target of ["memory", "user", "failure"] as const) {
       const filePath = await this.resolveStoragePath(target);
-      const state = await this.readFileState(filePath);
-      this.setEntries(target, [...new Set(state.entries)]);
-      this.fileFingerprints[filePath] = state.fingerprint;
+      await withMarkdownMutationLock(filePath, async () => {
+        const state = await this.readFileState(filePath);
+        const migrated = ensureMemoryEntryIds([...new Set(state.entries)]);
+        this.setEntries(target, migrated.entries);
+        this.fileFingerprints[filePath] = state.fingerprint;
+        if (migrated.changed) await this.saveToDisk(target);
+      });
     }
 
     // Deduplicate preserving order
@@ -326,7 +337,7 @@ export class MemoryStore {
     const today = new Date().toISOString().split("T")[0];
     const replacements = new Map(matches.map((entry) => {
       const decoded = this.decodeEntry(entry);
-      return [entry, this.encodeEntry(newContent, decoded.created, today, decoded.project ?? undefined)];
+      return [entry, this.encodeEntry(newContent, decoded.created, today, decoded.project ?? undefined, decoded.memoryId ?? undefined)];
     }));
     const testEntries = entries.map((entry) => replacements.get(entry) ?? entry);
     const newTotal = testEntries.join(ENTRY_DELIMITER).length;
@@ -433,34 +444,27 @@ export class MemoryStore {
    * Encode metadata (created, lastReferenced) as an HTML comment appended to entry text.
    * The comment is invisible in markdown and transparent to the § delimiter.
    */
-  private encodeEntry(text: string, created: string, lastReferenced: string, project?: string): string {
-    const projectMetadata = project?.trim()
-      ? `, project64=${Buffer.from(project.trim(), "utf-8").toString("base64url")}`
-      : "";
-    return `${text} <!-- created=${created}, last=${lastReferenced}${projectMetadata} -->`;
+  private encodeEntry(
+    text: string,
+    created: string,
+    lastReferenced: string,
+    project?: string,
+    memoryId = createMemoryId(),
+  ): string {
+    return encodeMemoryMetadata(text, created, lastReferenced, project, memoryId);
   }
 
   /**
    * Decode entry text, extracting metadata if present.
    * Falls back to today's date for legacy entries without metadata.
    */
-  private decodeEntry(raw: string): { text: string; created: string; lastReferenced: string; project: string | null } {
-    const match = raw.match(/^(.*?)\s*<!--\s*created=([^,]+),\s*last=([^,>]+)(?:,\s*project64=([A-Za-z0-9_-]+))?\s*-->\s*$/);
-    if (match) {
-      let project: string | null = null;
-      if (match[4]) {
-        try { project = Buffer.from(match[4], "base64url").toString("utf-8").trim() || null; } catch {}
-      }
-      return { text: match[1].trim(), created: match[2].trim(), lastReferenced: match[3].trim(), project };
-    }
-    // Legacy entry without metadata — use today as default
-    const today = new Date().toISOString().split("T")[0];
-    return { text: raw.trim(), created: today, lastReferenced: today, project: null };
+  private decodeEntry(raw: string): ReturnType<typeof parseMemoryMetadata> {
+    return parseMemoryMetadata(raw);
   }
 
   /** Strip metadata comment from entry text for display. */
   private stripMetadata(text: string): string {
-    return this.decodeEntry(text).text;
+    return stripMemoryMetadata(text);
   }
 
   private areDistinctScopedFailureCopies(

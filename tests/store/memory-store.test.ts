@@ -147,6 +147,7 @@ describe("MemoryStore", { concurrency: 1 }, () => {
       assert.equal(result.entries, undefined);
 
       const raw = await readRaw(memoryPath);
+      assert.match(raw, /memory_id=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
       assert.ok(raw.includes(`${TEST_MARKER} project uses pnpm`));
     });
 
@@ -208,7 +209,7 @@ describe("MemoryStore", { concurrency: 1 }, () => {
     it("evicts oldest entries in file order when memoryOverflowStrategy is fifo-evict", async () => {
       let consolidatorCalled = false;
       const store = new MemoryStore(makeConfig({
-        memoryCharLimit: 150,
+        memoryCharLimit: 250,
         memoryOverflowStrategy: "fifo-evict",
         autoConsolidate: true,
       }));
@@ -244,7 +245,7 @@ describe("MemoryStore", { concurrency: 1 }, () => {
 
     it("does not evict when the new entry cannot fit an empty memory", async () => {
       const store = new MemoryStore(makeConfig({
-        memoryCharLimit: 80,
+        memoryCharLimit: 140,
         memoryOverflowStrategy: "fifo-evict",
       }));
       await store.loadFromDisk();
@@ -325,12 +326,12 @@ describe("MemoryStore", { concurrency: 1 }, () => {
     });
 
     it("handles very long entry near char limit", async () => {
-      const limit = 250;
+      const limit = 300;
       const store = new MemoryStore(makeConfig({ memoryCharLimit: limit }));
       await store.loadFromDisk();
 
-      // Account for metadata overhead (~45 chars for <!-- created=..., last=... -->)
-      const entry = `${TEST_MARKER} ${"a".repeat(limit - 100)}`;
+      // Account for hidden metadata overhead, including the stable Memory ID.
+      const entry = `${TEST_MARKER} ${"a".repeat(limit - 150)}`;
       const result = await await store.add("memory", entry);
       await settle();
 
@@ -448,6 +449,20 @@ describe("MemoryStore", { concurrency: 1 }, () => {
       const raw = await readRaw(memoryPath);
       assert.ok(!raw.includes(`${TEST_MARKER} uses vim`));
       assert.ok(raw.includes(`${TEST_MARKER} uses neovim`));
+    });
+
+    it("preserves the Memory ID when replacing an entry", async () => {
+      const store = new MemoryStore(makeConfig());
+      await store.loadFromDisk();
+      await store.add("memory", `${TEST_MARKER} stable before`);
+      const before = (await readRaw(memoryPath)).match(/memory_id=([^,\s]+)/)?.[1];
+
+      const result = await store.replace("memory", `${TEST_MARKER} stable before`, `${TEST_MARKER} stable after`);
+      const after = (await readRaw(memoryPath)).match(/memory_id=([^,\s]+)/)?.[1];
+
+      assert.ok(result.success);
+      assert.equal(after, before);
+      assert.ok((await readRaw(memoryPath)).includes(`${TEST_MARKER} stable after`));
     });
 
     it("returns error when no match found", async () => {
@@ -664,6 +679,43 @@ describe("MemoryStore", { concurrency: 1 }, () => {
 
       const entries = store.getMemoryEntries();
       assert.deepEqual(entries, [entry1, entry2, entry3]);
+    });
+
+    it("migrates legacy entries to IDs idempotently", async () => {
+      await writeRaw(memoryPath, `${TEST_MARKER} legacy entry`);
+
+      const firstStore = new MemoryStore(makeConfig());
+      await firstStore.loadFromDisk();
+      const firstRaw = await readRaw(memoryPath);
+      const firstId = firstRaw.match(/memory_id=([^,\s]+)/)?.[1];
+
+      assert.match(firstId ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      assert.ok(firstRaw.includes(`${TEST_MARKER} legacy entry`));
+
+      const secondStore = new MemoryStore(makeConfig());
+      await secondStore.loadFromDisk();
+      const secondRaw = await readRaw(memoryPath);
+
+      assert.equal(secondRaw, firstRaw);
+      assert.equal(secondRaw.match(/memory_id=([^,\s]+)/)?.[1], firstId);
+      assert.deepEqual(secondStore.getMemoryEntries(), [`${TEST_MARKER} legacy entry`]);
+    });
+
+    it("leaves legacy data intact when ID migration is interrupted and retries safely", async () => {
+      const legacy = `${TEST_MARKER} interrupted migration`;
+      await writeRaw(memoryPath, legacy);
+
+      const interruptedStore = new MemoryStore(makeConfig());
+      (interruptedStore as any).saveToDisk = async () => {
+        throw new Error("simulated migration interruption");
+      };
+      await assert.rejects(() => interruptedStore.loadFromDisk(), /simulated migration interruption/);
+      assert.equal(await readRaw(memoryPath), legacy);
+
+      const retryStore = new MemoryStore(makeConfig());
+      await retryStore.loadFromDisk();
+      assert.match(await readRaw(memoryPath), /memory_id=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+      assert.deepEqual(retryStore.getMemoryEntries(), [legacy]);
     });
   });
 

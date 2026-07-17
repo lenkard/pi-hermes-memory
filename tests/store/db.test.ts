@@ -259,14 +259,20 @@ describe('DatabaseManager', () => {
 
       assert.ok(names.includes('project'));
 
-      const row = migratedDb.prepare('SELECT project, content FROM memories').get() as {
+      const row = migratedDb.prepare('SELECT project, memory_id, content FROM memories').get() as {
         project: string | null;
+        memory_id: string;
         content: string;
       };
       assert.strictEqual(row.project, null);
+      assert.match(row.memory_id, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
       assert.strictEqual(row.content, 'legacy memory entry');
 
       migratedManager.close();
+      const reloadedManager = new DatabaseManager(tmpDir);
+      const reloaded = reloadedManager.getDb().prepare('SELECT memory_id FROM memories').get() as { memory_id: string };
+      assert.strictEqual(reloaded.memory_id, row.memory_id);
+      reloadedManager.close();
     });
 
     it('should migrate legacy target CHECK constraint to allow failure entries', () => {

@@ -9,6 +9,7 @@ import {
   searchMemories,
   getMemories,
   removeMemory,
+  removeMemoryByMemoryId,
   touchMemory,
   getMemoryStats,
   syncMemoryEntry,
@@ -36,9 +37,10 @@ describe('sqlite-memory-store', () => {
   });
 
   describe('addMemory', () => {
-    it('should add a memory entry', () => {
+    it('should add a memory entry with a stable Memory ID', () => {
       const entry = addMemory(dbManager, 'prefers pnpm over npm');
       assert.ok(entry.id > 0);
+      assert.match(entry.memoryId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
       assert.strictEqual(entry.target, 'memory');
       assert.strictEqual(entry.content, 'prefers pnpm over npm');
       assert.ok(entry.created.length > 0);
@@ -58,6 +60,13 @@ describe('sqlite-memory-store', () => {
     it('should add a global entry (null project)', () => {
       const entry = addMemory(dbManager, 'timezone: AEST');
       assert.strictEqual(entry.project, null);
+    });
+
+    it('assigns different IDs to duplicate content in different scopes', () => {
+      const global = addMemory(dbManager, 'same durable fact');
+      const project = addMemory(dbManager, 'same durable fact', 'memory', 'project-a');
+
+      assert.notStrictEqual(global.memoryId, project.memoryId);
     });
   });
 
@@ -90,6 +99,26 @@ describe('sqlite-memory-store', () => {
       assert.strictEqual(results[0].target, 'memory');
     });
 
+    it('updates content by Memory ID without changing the SQLite row identity', () => {
+      const memoryId = '11111111-1111-4111-8111-111111111111';
+      const first = syncMemoryEntry(dbManager, {
+        memoryId,
+        content: 'original durable fact',
+        target: 'memory',
+      });
+      const second = syncMemoryEntry(dbManager, {
+        memoryId,
+        content: 'replacement durable fact',
+        target: 'memory',
+      });
+
+      assert.strictEqual(first.action, 'inserted');
+      assert.strictEqual(second.action, 'existing');
+      assert.strictEqual(second.entry.id, first.entry.id);
+      assert.strictEqual(second.entry.memoryId, memoryId);
+      assert.strictEqual(second.entry.content, 'replacement durable fact');
+    });
+
     it('preserves failure category metadata', () => {
       syncMemoryEntry(dbManager, {
         content: formatFailureMemoryContent('pnpm lockfile mismatch', {
@@ -117,6 +146,16 @@ describe('sqlite-memory-store', () => {
       assert.strictEqual(parsed.failureReason, 'npm install rewrote lockfile');
       assert.strictEqual(parsed.created, '2026-05-08');
       assert.strictEqual(parsed.lastReferenced, '2026-05-09');
+    });
+
+    it('parses stable Memory IDs from Markdown metadata', () => {
+      const parsed = parseMarkdownMemoryEntry(
+        'durable note <!-- memory_id=11111111-1111-4111-8111-111111111111, created=2026-05-08, last=2026-05-09 -->',
+        'memory',
+      );
+
+      assert.strictEqual(parsed.memoryId, '11111111-1111-4111-8111-111111111111');
+      assert.strictEqual(parsed.content, 'durable note');
     });
 
     it('does not infer project scope from spoofable failure content', () => {
@@ -493,6 +532,14 @@ describe('sqlite-memory-store', () => {
 
       const all = getMemories(dbManager);
       assert.strictEqual(all.length, 0);
+    });
+
+    it('should remove a memory by stable Memory ID and allow a new identity on re-add', () => {
+      const entry = addMemory(dbManager, 'to be removed by stable id');
+      assert.strictEqual(removeMemoryByMemoryId(dbManager, entry.memoryId), true);
+
+      const replacement = addMemory(dbManager, 'to be removed by stable id');
+      assert.notStrictEqual(replacement.memoryId, entry.memoryId);
     });
 
     it('should return false for non-existent id', () => {
