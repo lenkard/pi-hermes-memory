@@ -339,6 +339,37 @@ describe('sqlite-memory-store', () => {
       assert.ok(results.some(r => r.content.includes('pnpm')));
     });
 
+    it('orders matches by lexical relevance before recency', () => {
+      addMemory(
+        dbManager,
+        'PostgreSQL is the database for semantic memory indexing',
+        'memory',
+        null,
+        null,
+        null,
+        null,
+        null,
+        '2026-01-01',
+        '2026-01-01',
+      );
+      addMemory(
+        dbManager,
+        'PostgreSQL is used for recent backups',
+        'memory',
+        null,
+        null,
+        null,
+        null,
+        null,
+        '2026-07-01',
+        '2026-07-01',
+      );
+
+      const results = searchMemories(dbManager, 'PostgreSQL OR semantic');
+
+      assert.strictEqual(results[0].content, 'PostgreSQL is the database for semantic memory indexing');
+    });
+
     it('should find memories by partial content', () => {
       const results = searchMemories(dbManager, 'Prisma');
       assert.ok(results.length > 0);

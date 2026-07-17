@@ -47,7 +47,7 @@ Latency population excludes initial model download and process startup but inclu
 
 | ID | Source | Owner | Quantitative/qualitative | Provenance | Freshness | Quality limits | Approved purpose |
 |---|---|---|---|---|---|---|---|
-| D-01 | Versioned synthetic retrieval cases | Project | Quantitative | Reviewed repository fixture | Per change | Synthetic cases may not represent personal usage | Development and holdout retrieval evaluation |
+| D-01 | Versioned synthetic retrieval cases and lexical baseline | Project | Quantitative | Reviewed repository fixture; [`lexical-baseline.md`](results/lexical-baseline.md) | Per change | Synthetic cases may not represent personal usage | Development and holdout retrieval evaluation |
 | D-02 | Sanitized real Curated Memory cases | lenkard | Mixed | Owner-reviewed examples | Added during use | Initially unavailable; selection bias | Expand evaluation realism |
 | D-03 | Retrieval diagnostic records | Project | Quantitative | Deterministic tool details, secrets/text minimized | Per search | Tool invocation depends on Agent behavior | Latency, fallback, candidate/exclusion counts |
 | D-04 | Indexing and reconciliation status | Project | Quantitative | Local durable queue and PostgreSQL state | Current | Derived state can be stale during outages | Reliability and repair evidence |

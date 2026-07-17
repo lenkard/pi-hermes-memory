@@ -1,0 +1,144 @@
+
+> pi-hermes-memory@0.8.1 evaluate:retrieval
+> tsx scripts/evaluate-retrieval.ts
+
+{
+  "legacy": {
+    "totals": {
+      "cases": 22,
+      "topFiveHits": 15,
+      "noMatchCases": 2,
+      "noMatchFalsePositives": 1,
+      "forbiddenHits": 2
+    },
+    "bySplit": {
+      "development": {
+        "cases": 13,
+        "topFiveHits": 10,
+        "recallAt5": 0.7692307692307693,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 1
+      },
+      "holdout": {
+        "cases": 9,
+        "topFiveHits": 5,
+        "recallAt5": 0.5555555555555556,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 1,
+        "forbiddenHits": 1
+      }
+    },
+    "byKind": {
+      "paraphrase": {
+        "cases": 12,
+        "topFiveHits": 9,
+        "recallAt5": 0.75,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "exact": {
+        "cases": 3,
+        "topFiveHits": 3,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "scope": {
+        "cases": 3,
+        "topFiveHits": 3,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "adversarial": {
+        "cases": 2,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 2
+      },
+      "no-match": {
+        "cases": 2,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 2,
+        "noMatchFalsePositiveRate": 0.5,
+        "forbiddenHits": 0
+      }
+    }
+  },
+  "relevanceRanked": {
+    "totals": {
+      "cases": 22,
+      "topFiveHits": 17,
+      "noMatchCases": 2,
+      "noMatchFalsePositives": 1,
+      "forbiddenHits": 2
+    },
+    "bySplit": {
+      "development": {
+        "cases": 13,
+        "topFiveHits": 11,
+        "recallAt5": 0.8461538461538461,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 1
+      },
+      "holdout": {
+        "cases": 9,
+        "topFiveHits": 6,
+        "recallAt5": 0.6666666666666666,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 1,
+        "forbiddenHits": 1
+      }
+    },
+    "byKind": {
+      "paraphrase": {
+        "cases": 12,
+        "topFiveHits": 11,
+        "recallAt5": 0.9166666666666666,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "exact": {
+        "cases": 3,
+        "topFiveHits": 3,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "scope": {
+        "cases": 3,
+        "topFiveHits": 3,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "adversarial": {
+        "cases": 2,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 2
+      },
+      "no-match": {
+        "cases": 2,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 2,
+        "noMatchFalsePositiveRate": 0.5,
+        "forbiddenHits": 0
+      }
+    }
+  }
+}

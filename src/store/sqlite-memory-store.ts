@@ -691,7 +691,7 @@ export function searchMemories(
   const conditions: string[] = [];
   const params: unknown[] = [];
 
-  // FTS5 match via subquery with escaped query
+  // FTS5 match via the content table so SQLite can expose bm25 relevance.
   const normalizedQuery = normalizeFts5Query(query);
   if (normalizedQuery.length === 0) {
     return [];
@@ -701,7 +701,7 @@ export function searchMemories(
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    conditions.push('m.id IN (SELECT rowid FROM memory_fts WHERE memory_fts MATCH ?)');
+    conditions.push('memory_fts MATCH ?');
     params.push(matchQuery);
 
     if (project !== undefined) {
@@ -726,10 +726,11 @@ export function searchMemories(
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const sql = `
-      SELECT ${MEMORY_SELECT_COLUMNS}
+      SELECT m.*, bm25(memory_fts) AS relevance
       FROM memories m
+      JOIN memory_fts ON memory_fts.rowid = m.id
       ${whereClause}
-      ORDER BY m.last_referenced DESC
+      ORDER BY bm25(memory_fts) ASC, m.last_referenced DESC, m.id ASC
       LIMIT ?
     `;
 
