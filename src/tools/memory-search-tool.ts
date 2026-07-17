@@ -2,7 +2,18 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { DatabaseManager } from '../store/db.js';
-import { searchMemories, getMemoryStats } from '../store/sqlite-memory-store.js';
+import {
+  getMemoryStats,
+  searchMemories,
+  getMemoryByMemoryId,
+} from '../store/sqlite-memory-store.js';
+import { scanContent } from '../store/content-scanner.js';
+import { createHash } from 'node:crypto';
+import {
+  retrieveMemories,
+  type MemoryRetrievalDependencies,
+  type MemoryRetrievalEntry,
+} from '../semantic/memory-retrieval.js';
 import type { MemoryCategory } from '../types.js';
 
 interface SearchResult {
@@ -10,9 +21,48 @@ interface SearchResult {
   count?: number;
   message?: string;
   output?: string;
+  fallback?: boolean;
+  fallbackDiagnostic?: string;
 }
 
-export function registerMemorySearchTool(pi: ExtensionAPI, dbManager: DatabaseManager): void {
+function hashContent(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+function lexicalOnlyDependencies(dbManager: DatabaseManager): MemoryRetrievalDependencies {
+  return {
+    lexical: (query, options) => searchMemories(dbManager, query, options),
+    semanticEnabled: false,
+    authority: (memoryId) => {
+      const entry = getMemoryByMemoryId(dbManager, memoryId);
+      return entry ? {
+        memoryId: entry.memoryId,
+        content: entry.content,
+        contentHash: hashContent(entry.content),
+        project: entry.project,
+        target: entry.target,
+        category: entry.category,
+        created: entry.created,
+        lastReferenced: entry.lastReferenced,
+      } : null;
+    },
+    scan: (content) => scanContent(content),
+    semanticTimeoutMs: 0,
+  };
+}
+
+function formatEntry(entry: MemoryRetrievalEntry): string {
+  const projectLabel = entry.project ? `[${entry.project}]` : '[global]';
+  const targetLabel = entry.target === 'user' ? '👤' : entry.target === 'failure' ? '⚠️' : '🧠';
+  const categoryLabel = entry.category ? ` [${entry.category}]` : '';
+  return `${targetLabel} ${projectLabel}${categoryLabel} ${entry.content}\n   Created: ${entry.created} | Last used: ${entry.lastReferenced}`;
+}
+
+export function registerMemorySearchTool(
+  pi: ExtensionAPI,
+  dbManager: DatabaseManager,
+  semanticDeps: MemoryRetrievalDependencies | null = null,
+): void {
   pi.registerTool({
     name: 'memory_search',
     label: 'Memory Search',
@@ -56,7 +106,9 @@ Returns matching memory entries with project context and dates.`,
         return { content: [{ type: 'text' as const, text: result.message! }], details: result };
       }
 
-      const results = searchMemories(dbManager, query, { project, target, category, limit });
+      const deps = semanticDeps ?? lexicalOnlyDependencies(dbManager);
+      const retrieval = await retrieveMemories(dbManager, query, { project, target, category, limit }, deps);
+      const results = retrieval.entries;
 
       if (results.length === 0) {
         const result: SearchResult = { success: true, count: 0, message: `No memories found matching "${query}". Try a different search term or broader query.` };
@@ -64,16 +116,17 @@ Returns matching memory entries with project context and dates.`,
       }
 
       let output = `Found ${results.length} memories matching "${query}":\n\n`;
-
       for (const entry of results) {
-        const projectLabel = entry.project ? `[${entry.project}]` : '[global]';
-        const targetLabel = entry.target === 'user' ? '👤' : entry.target === 'failure' ? '⚠️' : '🧠';
-        const categoryLabel = entry.category ? ` [${entry.category}]` : '';
-        output += `${targetLabel} ${projectLabel}${categoryLabel} ${entry.content}\n`;
-        output += `   Created: ${entry.created} | Last used: ${entry.lastReferenced}\n\n`;
+        output += formatEntry(entry) + '\n\n';
       }
 
-      const finalResult: SearchResult = { success: true, count: results.length, output: output.trim() };
+      const finalResult: SearchResult = {
+        success: true,
+        count: results.length,
+        output: output.trim(),
+        fallback: retrieval.fallback,
+        fallbackDiagnostic: retrieval.fallbackDiagnostic,
+      };
       return { content: [{ type: 'text' as const, text: output.trim() }], details: finalResult };
     },
   });

@@ -78,6 +78,44 @@ export class PostgresSemanticIndex {
     );
   }
 
+  async search(
+    embedded: { vector: readonly number[] },
+    limit: number,
+    filters: { project?: string | null; target?: string; category?: string | null } = {},
+  ): Promise<Array<{ memoryId: string; contentHash: string }>> {
+    if (!validateEmbeddingVector(embedded.vector, this.contract)) {
+      throw new Error('Semantic search vector does not satisfy the active contract.');
+    }
+    const conditions: string[] = [];
+    const values: unknown[] = [`[${embedded.vector.join(',')}]`, limit];
+    let paramIndex = 3;
+    if (filters.project !== undefined) {
+      conditions.push(`project ${filters.project === null ? 'IS NULL' : `= $${paramIndex++}`}`);
+      if (filters.project !== null) values.push(filters.project);
+    }
+    if (filters.target) {
+      conditions.push(`target = $${paramIndex++}`);
+      values.push(filters.target);
+    }
+    if (filters.category !== undefined) {
+      conditions.push(`category ${filters.category === null ? 'IS NULL' : `= $${paramIndex++}`}`);
+      if (filters.category !== null) values.push(filters.category);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.client.query(
+      `SELECT memory_id, content_hash
+       FROM ${SEMANTIC_INDEX_TABLE}
+       ${whereClause}
+       ORDER BY embedding <=> $1::vector
+       LIMIT $2`,
+      values,
+    );
+    return (result.rows as Array<{ memory_id: string; content_hash: string }>).map((row) => ({
+      memoryId: row.memory_id,
+      contentHash: row.content_hash,
+    }));
+  }
+
   async close(): Promise<void> {
     const pool = this.client as Partial<Pick<Pool, 'end'>>;
     await pool.end?.();

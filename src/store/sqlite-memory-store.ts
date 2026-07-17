@@ -835,6 +835,33 @@ export function getMemories(
 }
 
 /**
+ * Look up a memory by its stable Memory ID for authority resolution.
+ */
+export function getMemoryByMemoryId(dbManager: DatabaseManager, memoryId: string): SqliteMemoryEntry | null {
+  const db = dbManager.getDb();
+  const row = db.prepare(`
+    SELECT ${MEMORY_SELECT_COLUMNS}
+    FROM memories
+    WHERE memory_id = ?
+  `).get(memoryId) as
+    | {
+        id: number;
+        memory_id?: string;
+        project: string | null;
+        target: string;
+        category: string | null;
+        content: string;
+        failure_reason: string | null;
+        tool_state: string | null;
+        corrected_to: string | null;
+        created: string;
+        last_referenced: string;
+      }
+    | undefined;
+  return row ? mapRow(row) : null;
+}
+
+/**
  * Remove a memory by ID.
  */
 export function removeMemory(dbManager: DatabaseManager, id: number): boolean {

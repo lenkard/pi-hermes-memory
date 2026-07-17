@@ -48,6 +48,13 @@ import { registerIndexSessionsCommand } from "./handlers/index-sessions.js";
 import { registerLearnMemoryCommand } from "./handlers/learn-memory.js";
 import { migrateThenSyncMarkdownMemories, registerSyncMarkdownMemoriesCommand } from "./handlers/sync-markdown-memories.js";
 import { enqueueMarkdownDelete, enqueueMarkdownUpsert } from "./semantic/semantic-index-queue.js";
+import { HttpEmbeddingClient } from "./semantic/embedding-client.js";
+import { PostgresSemanticIndex } from "./semantic/postgres-semantic-index.js";
+import { EMBEDDING_CONTRACT } from "./semantic/embedding-contract.js";
+import type { MemoryRetrievalDependencies } from "./semantic/memory-retrieval.js";
+import { getMemoryByMemoryId, searchMemories } from "./store/sqlite-memory-store.js";
+import { scanContent } from "./store/content-scanner.js";
+import { createHash } from "node:crypto";
 import { registerPreviewContextCommand } from "./handlers/preview-context.js";
 import { loadConfig } from "./config.js";
 import { detectProject, detectProjectSkills } from "./project.js";
@@ -78,6 +85,43 @@ export function registerProjectSkillDiscoveryHandler(
   pi.on("resources_discover", async (event, _ctx) => {
     return resolveProjectSkillDiscovery(skillStore, projectsMemoryDir, (event as { cwd?: string }).cwd);
   });
+}
+
+function buildSemanticRetrievalDeps(config: ReturnType<typeof loadConfig>, dbManager: DatabaseManager): MemoryRetrievalDependencies | null {
+  const semantic = config.semanticIndex;
+  if (!semantic || !semantic.enabled) return null;
+  const postgresUrl = process.env[semantic.postgresUrlEnv];
+  const embeddingEndpoint = process.env[semantic.embeddingEndpointEnv];
+  const embeddingApiKey = process.env[semantic.embeddingApiKeyEnv];
+  if (!postgresUrl || !embeddingEndpoint || !embeddingApiKey) return null;
+
+  const embeddingClient = new HttpEmbeddingClient(embeddingEndpoint, embeddingApiKey);
+  const index = PostgresSemanticIndex.fromConnectionString(postgresUrl);
+  return {
+    lexical: (query, options) => searchMemories(dbManager, query, options),
+    embedQuery: (query, signal) => embeddingClient.embedQuery(query, signal),
+    semanticIndex: {
+      async search(embedded, limit) {
+        return index.search(embedded, limit);
+      },
+    },
+    authority: (memoryId) => {
+      const entry = getMemoryByMemoryId(dbManager, memoryId);
+      return entry ? {
+        memoryId: entry.memoryId,
+        content: entry.content,
+        contentHash: createHash('sha256').update(entry.content).digest('hex'),
+        project: entry.project,
+        target: entry.target,
+        category: entry.category,
+        created: entry.created,
+        lastReferenced: entry.lastReferenced,
+      } : null;
+    },
+    scan: (content) => scanContent(content),
+    semanticTimeoutMs: 2000,
+    semanticEnabled: true,
+  };
 }
 
 export default function (pi: ExtensionAPI) {
@@ -258,7 +302,8 @@ export default function (pi: ExtensionAPI) {
 
   // ── 11. SQLite session search + extended memory ──
   registerSessionSearchTool(pi, dbManager, config.sessionSearch ?? { variant: "legacy" });
-  registerMemorySearchTool(pi, dbManager);
+  const semanticRetrievalDeps = buildSemanticRetrievalDeps(config, dbManager);
+  registerMemorySearchTool(pi, dbManager, semanticRetrievalDeps);
   registerIndexSessionsCommand(pi);
 
   // ── 12. Auto-index session on shutdown ──
