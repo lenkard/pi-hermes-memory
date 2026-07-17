@@ -2,7 +2,7 @@
 document_type: engineering-rfc
 id: RFC-0001
 title: Hybrid Semantic Recall for Curated Memory
-status: proposed
+status: approved
 owner: lenkard
 reviewers: [lenkard]
 business_case: docs/planning/business-cases/BC-0001-semantic-recall.md
@@ -306,5 +306,5 @@ No blocking design decisions remain. Exact development-set cutoffs and RRF param
 - [x] Business intent and bounded experiment approved
 - [x] Evidence plan reviewed in grilling session
 - [x] Architecture, infrastructure, data, security, reliability, and quality decisions reviewed
-- [ ] Implementation authorized from published RFC
+- [x] Implementation authorized from published RFC
 - [ ] Activation authorized after EP-0001 gates

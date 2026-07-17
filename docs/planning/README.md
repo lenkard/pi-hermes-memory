@@ -16,4 +16,4 @@ Project artifacts for the one-Agent Hybrid Recall experiment, synthesized using 
 
 ## Status
 
-The bounded experiment and design decisions are agreed. Application implementation has not started. RFC-0001 requires explicit implementation approval, then tracer-bullet implementation tickets.
+The bounded experiment, design decisions, and RFC implementation are approved. Application implementation has not started. The next step is an approved tracer-bullet ticket breakdown; activation remains separately gated by EP-0001.
