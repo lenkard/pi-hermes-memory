@@ -9,6 +9,7 @@ dist/
 infra/postgres/secrets/
 infra/embedding/secrets/
 infra/embedding/models/
+.scratch/
 
 # CodeGraph index (regenerated per project)
 .codegraph/
