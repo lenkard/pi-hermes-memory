@@ -7,6 +7,7 @@ Project artifacts for the one-Agent Hybrid Recall experiment, synthesized using 
 - [Business Case BC-0001](business-cases/BC-0001-semantic-recall.md)
 - [Evidence Plan EP-0001](evidence/EP-0001-semantic-recall.md)
   - [Lexical baseline results](evidence/results/lexical-baseline.md)
+  - [Hybrid activation review — do not activate](evidence/results/activation-review.md)
 - [Engineering RFC RFC-0001](rfcs/RFC-0001-hybrid-semantic-recall.md)
 - [Scheduled Outcome Review OR-0001](outcomes/OR-0001-semantic-recall.md)
 - [Primary-source infrastructure and repository research](../research/self-hosted-vector-memory-analysis.md)

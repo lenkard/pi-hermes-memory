@@ -1,0 +1,430 @@
+{
+  "generatedAt": "2026-07-17T02:11:03.405Z",
+  "split": "development",
+  "warmRuns": 5,
+  "contract": {
+    "version": "qwen3-embedding-0.6b-q8_0-v1",
+    "model": "Qwen/Qwen3-Embedding-0.6B",
+    "quantization": "Q8_0",
+    "dimensions": 1024,
+    "pooling": "last",
+    "queryInstruction": "Instruct: Given a query about prior agent knowledge, retrieve the Curated Memory entries most relevant to the current task"
+  },
+  "cutoff": 0.55,
+  "preexistingDerivedRows": 0,
+  "lexical": {
+    "totals": {
+      "cases": 13,
+      "topFiveHits": 11,
+      "noMatchCases": 1,
+      "noMatchFalsePositives": 0,
+      "forbiddenHits": 0
+    },
+    "bySplit": {
+      "development": {
+        "cases": 13,
+        "topFiveHits": 11,
+        "recallAt5": 0.8461538461538461,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "holdout": {
+        "cases": 0,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      }
+    },
+    "byKind": {
+      "paraphrase": {
+        "cases": 8,
+        "topFiveHits": 8,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "exact": {
+        "cases": 2,
+        "topFiveHits": 2,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "scope": {
+        "cases": 1,
+        "topFiveHits": 1,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "adversarial": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "no-match": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      }
+    }
+  },
+  "hybrid": {
+    "totals": {
+      "cases": 13,
+      "topFiveHits": 11,
+      "noMatchCases": 1,
+      "noMatchFalsePositives": 0,
+      "forbiddenHits": 0
+    },
+    "bySplit": {
+      "development": {
+        "cases": 13,
+        "topFiveHits": 11,
+        "recallAt5": 0.8461538461538461,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "holdout": {
+        "cases": 0,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      }
+    },
+    "byKind": {
+      "paraphrase": {
+        "cases": 8,
+        "topFiveHits": 8,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "exact": {
+        "cases": 2,
+        "topFiveHits": 2,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "scope": {
+        "cases": 1,
+        "topFiveHits": 1,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "adversarial": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "no-match": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      }
+    }
+  },
+  "latency": {
+    "samples": 65,
+    "warmP50Ms": 166.08978399999978,
+    "warmP95Ms": 233.7750930000002,
+    "warmMaxMs": 589.9136829999998
+  },
+  "outages": {
+    "embedding": {
+      "cases": 13,
+      "valid": 13,
+      "maxMs": 0.630486000000019
+    },
+    "postgres": {
+      "cases": 13,
+      "valid": 13,
+      "maxMs": 248.5754710000001
+    }
+  },
+  "cases": [
+    {
+      "id": "dev-paraphrase-package-manager",
+      "returnedIds": [
+        "failure-lockfile",
+        "global-package-manager",
+        "analytics-package-manager"
+      ],
+      "elapsedMs": 589.9136829999998,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 2,
+        "semanticCandidates": 3,
+        "returned": 3,
+        "elapsedMs": 590,
+        "semanticElapsedMs": 578,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-paraphrase-response-style",
+      "returnedIds": [
+        "global-response-style",
+        "project-network",
+        "global-derived-index",
+        "user-languages",
+        "analytics-package-manager"
+      ],
+      "elapsedMs": 193.13315499999953,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 5,
+        "semanticCandidates": 2,
+        "returned": 5,
+        "elapsedMs": 193,
+        "semanticElapsedMs": 193,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-paraphrase-source-authority",
+      "returnedIds": [
+        "project-network",
+        "project-embedding",
+        "failure-lockfile",
+        "failure-module",
+        "project-source-authority"
+      ],
+      "elapsedMs": 187.2540200000003,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 5,
+        "semanticCandidates": 0,
+        "returned": 5,
+        "elapsedMs": 187,
+        "semanticElapsedMs": 186,
+        "exclusions": {},
+        "fusion": "lexical-only",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-paraphrase-outage",
+      "returnedIds": [
+        "global-outage-fallback",
+        "user-languages"
+      ],
+      "elapsedMs": 202.86272499999995,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 2,
+        "semanticCandidates": 1,
+        "returned": 2,
+        "elapsedMs": 203,
+        "semanticElapsedMs": 201,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-paraphrase-language",
+      "returnedIds": [
+        "user-languages"
+      ],
+      "elapsedMs": 166.08978399999978,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 1,
+        "returned": 1,
+        "elapsedMs": 166,
+        "semanticElapsedMs": 165,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-paraphrase-test-isolation",
+      "returnedIds": [
+        "project-test-runner",
+        "failure-module"
+      ],
+      "elapsedMs": 188.3971109999993,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 2,
+        "semanticCandidates": 2,
+        "returned": 2,
+        "elapsedMs": 189,
+        "semanticElapsedMs": 187,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-paraphrase-network",
+      "returnedIds": [
+        "project-network"
+      ],
+      "elapsedMs": 168.23660399999972,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 1,
+        "returned": 1,
+        "elapsedMs": 168,
+        "semanticElapsedMs": 168,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-paraphrase-embedding-size",
+      "returnedIds": [
+        "project-embedding",
+        "failure-module",
+        "project-network",
+        "failure-lockfile",
+        "project-source-authority"
+      ],
+      "elapsedMs": 169.59153700000024,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 5,
+        "semanticCandidates": 1,
+        "returned": 5,
+        "elapsedMs": 170,
+        "semanticElapsedMs": 168,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-exact-test-command",
+      "returnedIds": [
+        "project-test-runner",
+        "failure-module"
+      ],
+      "elapsedMs": 146.08539800000017,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 2,
+        "returned": 2,
+        "elapsedMs": 146,
+        "semanticElapsedMs": 145,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-exact-pnpm-install",
+      "returnedIds": [
+        "failure-lockfile",
+        "global-package-manager",
+        "analytics-package-manager",
+        "failure-module"
+      ],
+      "elapsedMs": 139.2626540000001,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 4,
+        "returned": 4,
+        "elapsedMs": 139,
+        "semanticElapsedMs": 139,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-scope-analytics-installer",
+      "returnedIds": [
+        "analytics-package-manager"
+      ],
+      "elapsedMs": 136.8076719999999,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 1,
+        "returned": 1,
+        "elapsedMs": 137,
+        "semanticElapsedMs": 137,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-adversarial-secret",
+      "returnedIds": [],
+      "elapsedMs": 105.25721900000008,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 1,
+        "returned": 0,
+        "elapsedMs": 105,
+        "semanticElapsedMs": 105,
+        "exclusions": {
+          "unsafe": 1
+        },
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "dev-no-match-unrelated",
+      "returnedIds": [],
+      "elapsedMs": 107.22147599999971,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 0,
+        "semanticCandidates": 0,
+        "returned": 0,
+        "elapsedMs": 107,
+        "semanticElapsedMs": 106,
+        "exclusions": {},
+        "fusion": "lexical-only",
+        "fallback": false
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic fixture; owner-reviewed real Curated Memory remains limited.",
+    "Fault injection replaces remote calls rather than stopping containers.",
+    "One Agent and one self-hosted CPU embedding service."
+  ]
+}

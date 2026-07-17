@@ -51,7 +51,7 @@ import { enqueueMarkdownDelete, enqueueMarkdownUpsert } from "./semantic/semanti
 import { HttpEmbeddingClient } from "./semantic/embedding-client.js";
 import { PostgresSemanticIndex } from "./semantic/postgres-semantic-index.js";
 import { EMBEDDING_CONTRACT } from "./semantic/embedding-contract.js";
-import type { MemoryRetrievalDependencies } from "./semantic/memory-retrieval.js";
+import { SEMANTIC_MAX_COSINE_DISTANCE, type MemoryRetrievalDependencies } from "./semantic/memory-retrieval.js";
 import { runSemanticStartupWork } from "./semantic/semantic-index-worker.js";
 import { registerSemanticCommands } from "./handlers/semantic-commands.js";
 import { getMemoryByMemoryId, searchMemories } from "./store/sqlite-memory-store.js";
@@ -143,6 +143,7 @@ function buildSemanticRuntime(config: ReturnType<typeof loadConfig>, dbManager: 
     },
     scan: (content) => scanContent(content),
     semanticTimeoutMs: 2_000,
+    semanticMaxDistance: SEMANTIC_MAX_COSINE_DISTANCE,
     semanticEnabled: true,
   };
   return { embeddingClient, index, retrieval };

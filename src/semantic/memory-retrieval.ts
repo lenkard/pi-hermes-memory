@@ -17,6 +17,7 @@ export interface AuthorityRecord {
 export interface SemanticCandidate {
   memoryId: string;
   contentHash: string;
+  distance?: number;
 }
 
 export interface EmbeddedQuery {
@@ -76,10 +77,14 @@ export interface MemoryRetrievalDependencies {
   authority(memoryId: string): AuthorityRecord | null;
   scan(content: string): string | null;
   semanticTimeoutMs?: number;
+  semanticMaxDistance?: number;
   semanticEnabled?: boolean;
 }
 
 const K = 60;
+
+/** Frozen after development-only tuning; holdout must not change this value. */
+export const SEMANTIC_MAX_COSINE_DISTANCE = 0.55;
 
 export async function retrieveMemories(
   _dbManager: DatabaseManager,
@@ -108,11 +113,15 @@ export async function retrieveMemories(
   try {
     if (semanticEnabled && deps.embedQuery && deps.semanticIndex) {
       const vector = await deps.embedQuery(query, controller.signal);
-      semanticCandidates = await deps.semanticIndex.search(
+      semanticCandidates = (await deps.semanticIndex.search(
         { vector },
         semanticCandidateLimit,
         { project: request.project, target: request.target, category: request.category },
-      );
+      )).filter((candidate) => (
+        candidate.distance === undefined
+        || deps.semanticMaxDistance === undefined
+        || candidate.distance <= deps.semanticMaxDistance
+      ));
     }
   } catch {
     fallback = true;

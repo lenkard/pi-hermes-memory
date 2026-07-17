@@ -1,0 +1,354 @@
+{
+  "generatedAt": "2026-07-17T02:11:49.494Z",
+  "split": "holdout",
+  "warmRuns": 5,
+  "contract": {
+    "version": "qwen3-embedding-0.6b-q8_0-v1",
+    "model": "Qwen/Qwen3-Embedding-0.6B",
+    "quantization": "Q8_0",
+    "dimensions": 1024,
+    "pooling": "last",
+    "queryInstruction": "Instruct: Given a query about prior agent knowledge, retrieve the Curated Memory entries most relevant to the current task"
+  },
+  "cutoff": 0.55,
+  "preexistingDerivedRows": 0,
+  "lexical": {
+    "totals": {
+      "cases": 9,
+      "topFiveHits": 6,
+      "noMatchCases": 1,
+      "noMatchFalsePositives": 1,
+      "forbiddenHits": 0
+    },
+    "bySplit": {
+      "development": {
+        "cases": 0,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "holdout": {
+        "cases": 9,
+        "topFiveHits": 6,
+        "recallAt5": 0.6666666666666666,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 1,
+        "forbiddenHits": 0
+      }
+    },
+    "byKind": {
+      "paraphrase": {
+        "cases": 4,
+        "topFiveHits": 3,
+        "recallAt5": 0.75,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "exact": {
+        "cases": 1,
+        "topFiveHits": 1,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "scope": {
+        "cases": 2,
+        "topFiveHits": 2,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "adversarial": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "no-match": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 1,
+        "forbiddenHits": 0
+      }
+    }
+  },
+  "hybrid": {
+    "totals": {
+      "cases": 9,
+      "topFiveHits": 6,
+      "noMatchCases": 1,
+      "noMatchFalsePositives": 1,
+      "forbiddenHits": 0
+    },
+    "bySplit": {
+      "development": {
+        "cases": 0,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "holdout": {
+        "cases": 9,
+        "topFiveHits": 6,
+        "recallAt5": 0.6666666666666666,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 1,
+        "forbiddenHits": 0
+      }
+    },
+    "byKind": {
+      "paraphrase": {
+        "cases": 4,
+        "topFiveHits": 3,
+        "recallAt5": 0.75,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "exact": {
+        "cases": 1,
+        "topFiveHits": 1,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "scope": {
+        "cases": 2,
+        "topFiveHits": 2,
+        "recallAt5": 1,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "adversarial": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 0,
+        "noMatchFalsePositiveRate": 0,
+        "forbiddenHits": 0
+      },
+      "no-match": {
+        "cases": 1,
+        "topFiveHits": 0,
+        "recallAt5": 0,
+        "noMatchCases": 1,
+        "noMatchFalsePositiveRate": 1,
+        "forbiddenHits": 0
+      }
+    }
+  },
+  "latency": {
+    "samples": 45,
+    "warmP50Ms": 165.94298499999968,
+    "warmP95Ms": 273.3121460000002,
+    "warmMaxMs": 558.5143619999999
+  },
+  "outages": {
+    "embedding": {
+      "cases": 9,
+      "valid": 9,
+      "maxMs": 1.0217689999990398
+    },
+    "postgres": {
+      "cases": 9,
+      "valid": 9,
+      "maxMs": 208.43162200000006
+    }
+  },
+  "cases": [
+    {
+      "id": "holdout-paraphrase-installation",
+      "returnedIds": [
+        "analytics-package-manager",
+        "global-package-manager",
+        "project-network",
+        "failure-module",
+        "global-derived-index"
+      ],
+      "elapsedMs": 558.5143619999999,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 5,
+        "semanticCandidates": 4,
+        "returned": 5,
+        "elapsedMs": 558,
+        "semanticElapsedMs": 546,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-paraphrase-authority",
+      "returnedIds": [
+        "global-derived-index",
+        "global-backups",
+        "global-package-manager",
+        "project-source-authority"
+      ],
+      "elapsedMs": 179.12606899999992,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 4,
+        "semanticCandidates": 1,
+        "returned": 4,
+        "elapsedMs": 179,
+        "semanticElapsedMs": 178,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-paraphrase-fallback",
+      "returnedIds": [
+        "global-outage-fallback",
+        "failure-pgvector",
+        "project-network",
+        "user-languages",
+        "global-response-style"
+      ],
+      "elapsedMs": 177.39857200000006,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 5,
+        "semanticCandidates": 1,
+        "returned": 5,
+        "elapsedMs": 178,
+        "semanticElapsedMs": 176,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-paraphrase-preference",
+      "returnedIds": [
+        "project-network",
+        "global-derived-index"
+      ],
+      "elapsedMs": 141.25555600000007,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 2,
+        "semanticCandidates": 0,
+        "returned": 2,
+        "elapsedMs": 141,
+        "semanticElapsedMs": 141,
+        "exclusions": {},
+        "fusion": "lexical-only",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-exact-model",
+      "returnedIds": [
+        "project-embedding"
+      ],
+      "elapsedMs": 306.2830130000002,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 1,
+        "returned": 1,
+        "elapsedMs": 306,
+        "semanticElapsedMs": 306,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-scope-analytics-vectors",
+      "returnedIds": [
+        "analytics-postgres"
+      ],
+      "elapsedMs": 99.3272050000005,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 1,
+        "returned": 1,
+        "elapsedMs": 100,
+        "semanticElapsedMs": 98,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-scope-project-correction",
+      "returnedIds": [
+        "failure-lockfile"
+      ],
+      "elapsedMs": 173.64589699999942,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 1,
+        "returned": 1,
+        "elapsedMs": 173,
+        "semanticElapsedMs": 173,
+        "exclusions": {},
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-adversarial-instruction",
+      "returnedIds": [
+        "global-derived-index"
+      ],
+      "elapsedMs": 84.8501099999994,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 2,
+        "returned": 1,
+        "elapsedMs": 85,
+        "semanticElapsedMs": 84,
+        "exclusions": {
+          "unsafe": 1
+        },
+        "fusion": "rrf-equal",
+        "fallback": false
+      }
+    },
+    {
+      "id": "holdout-no-match-framework",
+      "returnedIds": [
+        "global-backups"
+      ],
+      "elapsedMs": 114.89514999999938,
+      "fallback": false,
+      "diagnostics": {
+        "lexicalCandidates": 1,
+        "semanticCandidates": 0,
+        "returned": 1,
+        "elapsedMs": 115,
+        "semanticElapsedMs": 114,
+        "exclusions": {},
+        "fusion": "lexical-only",
+        "fallback": false
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic fixture; owner-reviewed real Curated Memory remains limited.",
+    "Fault injection replaces remote calls rather than stopping containers.",
+    "One Agent and one self-hosted CPU embedding service."
+  ]
+}

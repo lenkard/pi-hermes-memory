@@ -11,6 +11,8 @@ last_updated: 2026-07-16
 
 # Evidence Plan: Semantic Recall for Curated Memory
 
+**Activation result:** [Do not activate — holdout gates failed](results/activation-review.md)
+
 ## 1. Decision this evidence must support
 
 - **Decision owner:** lenkard

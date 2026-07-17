@@ -118,6 +118,22 @@ describe('memory retrieval module', () => {
     assert.ok(ids.includes('semantic-only'));
   });
 
+  it('excludes semantic candidates beyond the configured cosine distance cutoff', async () => {
+    const depsValue = deps({
+      semanticMaxDistance: 0.35,
+      semanticIndex: {
+        async search() {
+          return [{ memoryId: 'too-distant', contentHash: 'hash', distance: 0.36 }];
+        },
+      },
+    });
+
+    const result = await retrieveMemories(dbManager, 'unrelated query', {}, depsValue);
+
+    assert.equal(result.entries.length, 0);
+    assert.equal(result.diagnostics.semanticCandidates, 0);
+  });
+
   it('excludes stale semantic candidates whose authority content hash differs', async () => {
     const depsValue = deps({
       semanticIndex: {

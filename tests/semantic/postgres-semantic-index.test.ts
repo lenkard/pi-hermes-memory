@@ -91,12 +91,12 @@ describe('PostgresSemanticIndex', () => {
     const client: Queryable = {
       query: async (text, values) => {
         call = { text, values };
-        return { rows: [], rowCount: 0 };
+        return { rows: [{ memory_id: 'id', content_hash: 'hash', distance: '0.25' }], rowCount: 1 };
       },
     };
     const embedding = Array.from({ length: EMBEDDING_CONTRACT.dimensions }, () => 1 / Math.sqrt(EMBEDDING_CONTRACT.dimensions));
 
-    await new PostgresSemanticIndex(client).search(
+    const results = await new PostgresSemanticIndex(client).search(
       { vector: embedding },
       10,
       { project: 'project-a', target: 'memory', category: 'convention' },
@@ -105,6 +105,7 @@ describe('PostgresSemanticIndex', () => {
     assert.match(call?.text ?? '', /WHERE project = \$3 AND target = \$4 AND category = \$5\s+ORDER BY embedding <=> \$1::vector/);
     assert.deepStrictEqual(call?.values?.slice(1), [10, 'project-a', 'memory', 'convention']);
     assert.doesNotMatch(call?.text ?? '', /hnsw|ivfflat/i);
+    assert.deepStrictEqual(results, [{ memoryId: 'id', contentHash: 'hash', distance: 0.25 }]);
   });
 
   it('deletes by stable Memory ID only', async () => {

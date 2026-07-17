@@ -19,7 +19,8 @@
   "scripts": {
     "check": "node scripts/ensure-dev.mjs check && tsc --noEmit",
     "test": "node scripts/ensure-dev.mjs test && tests/run-all.sh",
-    "evaluate:retrieval": "tsx scripts/evaluate-retrieval.ts"
+    "evaluate:retrieval": "tsx scripts/evaluate-retrieval.ts",
+    "evaluate:hybrid": "tsx scripts/evaluate-hybrid-retrieval.ts"
   },
   "keywords": [
     "pi-package",

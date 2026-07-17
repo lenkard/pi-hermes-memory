@@ -17,6 +17,8 @@ last_updated: 2026-07-16
 
 **Published discussion:** [GitHub issue #1](https://github.com/lenkard/pi-hermes-memory/issues/1)
 
+**Activation evidence:** [Do not activate — holdout gates failed](../evidence/results/activation-review.md)
+
 ## 1. Executive decision
 
 - **Problem and target user:** One Agent cannot retrieve Curated Memory by meaning when query wording differs because current search is lexical.

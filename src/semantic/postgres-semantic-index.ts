@@ -109,7 +109,7 @@ export class PostgresSemanticIndex {
     embedded: { vector: readonly number[] },
     limit: number,
     filters: { project?: string | null; target?: string; category?: string | null } = {},
-  ): Promise<Array<{ memoryId: string; contentHash: string }>> {
+  ): Promise<Array<{ memoryId: string; contentHash: string; distance: number }>> {
     if (!validateEmbeddingVector(embedded.vector, this.contract)) {
       throw new Error('Semantic search vector does not satisfy the active contract.');
     }
@@ -130,16 +130,17 @@ export class PostgresSemanticIndex {
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await this.client.query(
-      `SELECT memory_id, content_hash
+      `SELECT memory_id, content_hash, embedding <=> $1::vector AS distance
        FROM ${SEMANTIC_INDEX_TABLE}
        ${whereClause}
        ORDER BY embedding <=> $1::vector
        LIMIT $2`,
       values,
     );
-    return (result.rows as Array<{ memory_id: string; content_hash: string }>).map((row) => ({
+    return (result.rows as Array<{ memory_id: string; content_hash: string; distance: number | string }>).map((row) => ({
       memoryId: row.memory_id,
       contentHash: row.content_hash,
+      distance: Number(row.distance),
     }));
   }
 
