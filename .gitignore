@@ -6,6 +6,9 @@ dist/
 .env
 .env.*
 !.env.example
+infra/postgres/secrets/
+infra/embedding/secrets/
+infra/embedding/models/
 
 # CodeGraph index (regenerated per project)
 .codegraph/

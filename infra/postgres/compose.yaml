@@ -1,0 +1,67 @@
+name: pi-memory-postgres
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.5-pg17-bookworm@sha256:555f6d1b6373d0f50ab7eb83062f0a7214ca17b9e5885fb60aaceeb082d58cb5
+    container_name: pi-memory-postgres
+    restart: unless-stopped
+    stop_grace_period: 1m
+    shm_size: 512mb
+    cpus: 1.5
+    mem_limit: 4g
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_superuser_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --data-checksums
+    secrets:
+      - postgres_superuser_password
+      - pi_memory_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    ports:
+      - "${PG_BIND_ADDRESS:-127.0.0.1}:5432:5432"
+    command:
+      - postgres
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - max_connections=40
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - wal_compression=on
+      - -c
+      - log_min_duration_statement=500
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d pi_memory -tAc 'SELECT 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - database
+
+networks:
+  database:
+    ipam:
+      config:
+        - subnet: 172.30.54.0/24
+
+volumes:
+  postgres_data:
+    name: pi-memory-postgres-data
+
+secrets:
+  postgres_superuser_password:
+    file: ./secrets/postgres_superuser_password
+  pi_memory_password:
+    file: ./secrets/pi_memory_password

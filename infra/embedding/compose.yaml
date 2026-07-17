@@ -1,0 +1,60 @@
+name: pi-memory-embedding
+
+services:
+  embedding:
+    image: ghcr.io/ggml-org/llama.cpp:server@sha256:7ea3fcd078948e7cf2e8c07405c83430e66a811f5b7b3350c2c2e9f1f93a42bc
+    container_name: pi-memory-embedding
+    restart: unless-stopped
+    stop_grace_period: 30s
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: 1.5
+    mem_limit: 3g
+    volumes:
+      - ./models:/models:ro
+    secrets:
+      - embedding_api_key
+    ports:
+      - "${EMBEDDING_BIND_ADDRESS:-127.0.0.1}:8081:8080"
+    command:
+      - --model
+      - /models/Qwen3-Embedding-0.6B-Q8_0.gguf
+      - --alias
+      - qwen3-embedding-0.6b-q8_0
+      - --embedding
+      - --pooling
+      - last
+      - --ctx-size
+      - "4096"
+      - --batch-size
+      - "1024"
+      - --ubatch-size
+      - "1024"
+      - --parallel
+      - "1"
+      - --threads
+      - "2"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --api-key-file
+      - /run/secrets/embedding_api_key
+      - --metrics
+      - --no-webui
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -H \"Authorization: Bearer $$(cat /run/secrets/embedding_api_key)\" http://127.0.0.1:8080/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+secrets:
+  embedding_api_key:
+    file: ./secrets/embedding_api_key

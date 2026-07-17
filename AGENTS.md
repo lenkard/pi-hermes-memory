@@ -2,60 +2,69 @@
 
 ## Project Overview
 
-This is a Pi coding agent extension that brings Hermes-style persistent memory and a learning loop to any Pi user. After `pi install`, users get persistent memory across sessions, a background learning loop, and session-end flush.
+This is a Pi coding agent extension that brings Hermes-style persistent memory, session search, procedural skills, and a learning loop to Pi. The current package version is **v0.8.1**.
 
-**v0.1 is complete** (119 tests, v0.1.0 tagged). Current work is **v0.2: Skills + Smart Curation** — see `docs/0.2/TASKS.md`.
+The `lenkard` fork is planning optional Hybrid Recall for Curated Memory. Before working on that effort, read `CONTEXT.md`, the ADRs in `docs/adr/`, and `docs/planning/README.md`. Historical version plans under `docs/0.*` and root `PLAN.md` describe earlier releases and are not the current work queue.
 
 ## Architecture
 
-- **Language**: TypeScript (loaded via jiti, no compilation needed at runtime)
-- **Runtime**: Pi extension API (`@earendil-works/pi-coding-agent`)
-- **Storage**: Two markdown files (`MEMORY.md`, `USER.md`) in `~/.pi/agent/memory/`
-- **Entry point**: `src/index.ts` — registers tools, event handlers, and commands
+- **Language:** TypeScript loaded through Pi's extension runtime
+- **Runtime:** `@earendil-works/pi-coding-agent`
+- **Authoritative memory:** human-readable Markdown under `~/.pi/agent/pi-hermes-memory/` and project memory roots
+- **Local search/index:** SQLite with FTS5 for memories and session history
+- **Procedural memory:** Pi-native `SKILL.md` files
+- **Entry point:** `src/index.ts` wires tools, lifecycle handlers, persistence, migration, and commands
 
 ## Key Files
 
 | File | Purpose |
-|---|---
-| `src/index.ts` | Extension entry point — wires all components together |
-| `src/types.ts` | Shared TypeScript interfaces + `getMessageText()` helper |
-| `src/constants.ts` | Prompts, defaults, delimiter |
-| `src/store/memory-store.ts` | Core `MemoryStore` class — CRUD, persistence, frozen snapshot |
-| `src/store/content-scanner.ts` | `scanContent()` — injection/exfiltration detection |
-| `src/tools/memory-tool.ts` | `registerMemoryTool()` — LLM tool definition |
-| `src/handlers/background-review.ts` | `setupBackgroundReview()` — learning loop via `pi.exec` |
-| `src/handlers/session-flush.ts` | `setupSessionFlush()` — pre-compaction/shutdown flush |
-| `src/handlers/insights.ts` | `registerInsightsCommand()` — `/memory-insights` command |
-| `PLAN.md` | Full v0.1 implementation plan with Hermes source file reference map |
-| `docs/ROADMAP.md` | Full roadmap with Hermes competitive analysis + gap analysis |
-| `docs/0.2/TASKS.md` | v0.2 task breakdown — Skills + Smart Curation |
+|---|---|
+| `src/index.ts` | Extension composition root |
+| `src/config.ts` | Backward-compatible configuration loading and defaults |
+| `src/types.ts` | Shared TypeScript contracts |
+| `src/store/memory-store.ts` | Markdown memory lifecycle, limits, locking, and mutations |
+| `src/store/db.ts` | SQLite lifecycle, migration, WAL, and corruption recovery |
+| `src/store/sqlite-memory-store.ts` | SQLite memory mirror and FTS5 retrieval |
+| `src/store/session-indexer.ts` | Session indexing and incremental backfill |
+| `src/store/content-scanner.ts` | Injection, exfiltration, secret, and suspicious-content scanning |
+| `src/tools/memory-tool.ts` | Curated Memory mutations and SQLite reconciliation |
+| `src/tools/memory-search-tool.ts` | Current lexical `memory_search` interface |
+| `src/tools/session-search-tool.ts` | Indexed session-history search |
+| `src/tools/skill-tool.ts` | Procedural skill management |
+| `docs/planning/` | Current Business Case, Evidence Plan, RFC, and Outcome Review |
+| `infra/` | Versioned PostgreSQL/pgvector and embedding-server deployment definitions |
 
 ## Design Decisions
 
-1. **Frozen snapshot** — Memory is injected into system prompt once at session start, never mutated mid-session (preserves Pi's prompt caching)
-2. **Atomic writes** — Temp file + `fs.rename()` for crash safety
-3. **`pi.exec()` for background review** — Stays within Pi's intended extension API
-4. **`§` delimiter** — Same as Hermes for consistency
-5. **No SQLite** — Pi has its own `SessionManager`, we read from it directly
+1. **Policy-only prompt by default:** durable context is searched on demand rather than fully injected.
+2. **Markdown authority:** human-readable Curated Memory remains authoritative; indexes are rebuildable.
+3. **SQLite local index:** FTS5 supports memory/session search and local fallback.
+4. **Atomic and serialized mutations:** memory writes coordinate concurrent editors/processes and recover conservatively.
+5. **Direct review transport with subprocess fallback:** background learning avoids disturbing the main Agent context while degrading safely.
+6. **Stored content is untrusted:** writes and retrieved context require deterministic scanning and current evidence overrides memory.
+7. **Hermes-compatible delimiter and migration:** legacy data is normalized without silent loss.
 
-## Hermes Source Reference
+## Current Planning and Work Tracking
 
-The implementation is ported from the Hermes agent harness. See `PLAN.md` → "Hermes Source File Reference Map" for exact files and line ranges to read.
+- Start at `docs/planning/README.md`.
+- The current proposal is `RFC-0001`, published as GitHub issue #1.
+- Do not implement the proposal until its implementation approval is checked.
+- After approval, implementation work is split into tracer-bullet GitHub issues carrying `ready-for-agent` and explicit blocking edges.
+- `docs/ROADMAP.md`, root `PLAN.md`, and `docs/0.*` remain useful historical context but may contain completed milestones or obsolete future language.
 
-## Roadmap & Task Tracking
+## Agent skills
 
-- **Roadmap**: `docs/ROADMAP.md` — full roadmap with Hermes competitive analysis, gap analysis, and phased plan (v0.1 → v0.5 → v1.0)
-- **v0.1 tasks** (complete): `docs/0.1/TASKS.md`
-- **v0.2 tasks** (current): `docs/0.2/TASKS.md` — Skills, auto-consolidation, correction detection, tool-call-aware nudge
+### Issue tracker
 
-**Workflow:**
-1. Pick a task from `docs/0.2/TASKS.md`
-2. Mark it `[~]` (in progress)
-3. Implement it
-4. Mark it `[x]` (done) with the commit hash
-5. Move to the next task
+Issues and planning artifacts are tracked in GitHub Issues on `lenkard/pi-hermes-memory`. See `docs/agents/issue-tracker.md`.
 
-**Before starting any work, read `docs/0.2/TASKS.md` to see what's next.**
+### Triage labels
+
+Use the five default Matt Pocock triage roles. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository using root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
 
 ## Development
 
@@ -63,7 +72,10 @@ The implementation is ported from the Hermes agent harness. See `PLAN.md` → "H
 # Type check
 npm run check
 
-# Test locally
+# Automated tests
+npm test
+
+# Manual extension test
 pi -e ./src/index.ts
 ```
 

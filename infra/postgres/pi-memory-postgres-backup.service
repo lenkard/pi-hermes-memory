@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up the Pi Memory PostgreSQL database
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/pi-memory-postgres/backup.sh
+User=root
+Group=root
