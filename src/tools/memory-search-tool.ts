@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import {
   retrieveMemories,
   type MemoryRetrievalDependencies,
+  type MemoryRetrievalDiagnostics,
   type MemoryRetrievalEntry,
 } from '../semantic/memory-retrieval.js';
 import type { MemoryCategory } from '../types.js';
@@ -23,6 +24,7 @@ interface SearchResult {
   output?: string;
   fallback?: boolean;
   fallbackDiagnostic?: string;
+  diagnostics?: MemoryRetrievalDiagnostics;
 }
 
 function hashContent(content: string): string {
@@ -111,7 +113,14 @@ Returns matching memory entries with project context and dates.`,
       const results = retrieval.entries;
 
       if (results.length === 0) {
-        const result: SearchResult = { success: true, count: 0, message: `No memories found matching "${query}". Try a different search term or broader query.` };
+        const result: SearchResult = {
+          success: true,
+          count: 0,
+          message: `No memories found matching "${query}". Try a different search term or broader query.`,
+          fallback: retrieval.fallback,
+          fallbackDiagnostic: retrieval.fallbackDiagnostic,
+          diagnostics: retrieval.diagnostics,
+        };
         return { content: [{ type: 'text' as const, text: result.message! }], details: result };
       }
 
@@ -126,6 +135,7 @@ Returns matching memory entries with project context and dates.`,
         output: output.trim(),
         fallback: retrieval.fallback,
         fallbackDiagnostic: retrieval.fallbackDiagnostic,
+        diagnostics: retrieval.diagnostics,
       };
       return { content: [{ type: 'text' as const, text: output.trim() }], details: finalResult };
     },

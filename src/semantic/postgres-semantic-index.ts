@@ -78,6 +78,33 @@ export class PostgresSemanticIndex {
     );
   }
 
+  async listAll(): Promise<Array<{ memoryId: string; contentHash: string; contractVersion: string }>> {
+    const result = await this.client.query(`
+      SELECT memory_id, content_hash, contract_version
+      FROM ${SEMANTIC_INDEX_TABLE}
+      ORDER BY memory_id ASC
+    `);
+    return (result.rows as Array<{ memory_id: string; content_hash: string; contract_version: string }>).map((row) => ({
+      memoryId: row.memory_id,
+      contentHash: row.content_hash,
+      contractVersion: row.contract_version,
+    }));
+  }
+
+  async count(): Promise<number> {
+    const result = await this.client.query(`SELECT COUNT(*)::int AS count FROM ${SEMANTIC_INDEX_TABLE}`);
+    return Number((result.rows[0] as { count?: unknown } | undefined)?.count ?? 0);
+  }
+
+  async health(): Promise<boolean> {
+    await this.client.query('SELECT 1');
+    return true;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.client.query(`DELETE FROM ${SEMANTIC_INDEX_TABLE}`);
+  }
+
   async search(
     embedded: { vector: readonly number[] },
     limit: number,

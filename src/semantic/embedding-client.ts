@@ -22,13 +22,28 @@ type EmbeddingResponse = {
 
 export class HttpEmbeddingClient {
   private readonly embeddingsUrl: string;
+  private readonly healthUrl: string;
 
   constructor(
     endpointBase: string,
     private readonly apiKey: string,
     private readonly contract: EmbeddingContract = EMBEDDING_CONTRACT,
   ) {
-    this.embeddingsUrl = `${endpointBase.replace(/\/+$/, '')}/v1/embeddings`;
+    const baseUrl = endpointBase.replace(/\/+$/, '');
+    this.embeddingsUrl = `${baseUrl}/v1/embeddings`;
+    this.healthUrl = `${baseUrl}/health`;
+  }
+
+  async health(signal?: AbortSignal): Promise<boolean> {
+    try {
+      const response = await fetch(this.healthUrl, {
+        headers: { authorization: `Bearer ${this.apiKey}` },
+        signal,
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 
   embedDocument(content: string, signal?: AbortSignal): Promise<readonly number[]> {

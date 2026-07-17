@@ -24,7 +24,11 @@ export interface EmbeddedQuery {
 }
 
 export interface SemanticCandidateIndex {
-  search(embedded: EmbeddedQuery, limit: number): Promise<SemanticCandidate[]>;
+  search(
+    embedded: EmbeddedQuery,
+    limit: number,
+    filters: { project?: string | null; target?: string; category?: MemoryCategory | null },
+  ): Promise<SemanticCandidate[]>;
 }
 
 export interface MemoryRetrievalRequest {
@@ -46,11 +50,23 @@ export interface MemoryRetrievalEntry {
   source: 'lexical' | 'semantic' | 'hybrid';
 }
 
+export interface MemoryRetrievalDiagnostics {
+  lexicalCandidates: number;
+  semanticCandidates: number;
+  returned: number;
+  elapsedMs: number;
+  semanticElapsedMs: number;
+  exclusions: Partial<Record<'stale' | 'unsafe' | 'missing' | 'scope' | 'duplicate', number>>;
+  fusion: 'rrf-equal' | 'lexical-only';
+  fallback: boolean;
+}
+
 export interface MemoryRetrievalResult {
   entries: MemoryRetrievalEntry[];
   fallback: boolean;
   fallbackDiagnostic?: string;
   exclusionsReasons: Partial<Record<'stale' | 'unsafe' | 'missing' | 'scope' | 'duplicate', number>>;
+  diagnostics: MemoryRetrievalDiagnostics;
 }
 
 export interface MemoryRetrievalDependencies {
@@ -71,6 +87,7 @@ export async function retrieveMemories(
   request: MemoryRetrievalRequest,
   deps: MemoryRetrievalDependencies,
 ): Promise<MemoryRetrievalResult> {
+  const startedAt = Date.now();
   const limit = Math.min(request.limit ?? 10, 20);
   const exclusions: MemoryRetrievalResult['exclusionsReasons'] = {};
   const lexicalResults = deps.lexical(query, request);
@@ -85,16 +102,23 @@ export async function retrieveMemories(
 
   const semanticEnabled = deps.semanticEnabled !== false && !!deps.embedQuery && !!deps.semanticIndex;
   const controller = new AbortController();
+  const semanticStartedAt = Date.now();
+  let semanticElapsedMs = 0;
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
   try {
     if (semanticEnabled && deps.embedQuery && deps.semanticIndex) {
       const vector = await deps.embedQuery(query, controller.signal);
-      semanticCandidates = await deps.semanticIndex.search({ vector }, semanticCandidateLimit);
+      semanticCandidates = await deps.semanticIndex.search(
+        { vector },
+        semanticCandidateLimit,
+        { project: request.project, target: request.target, category: request.category },
+      );
     }
   } catch {
     fallback = true;
     fallbackDiagnostic = 'semantic retrieval unavailable; returning lexical results';
   } finally {
+    semanticElapsedMs = Date.now() - semanticStartedAt;
     clearTimeout(timeoutHandle);
   }
 
@@ -175,11 +199,22 @@ export async function retrieveMemories(
     return (right.lastReferenced).localeCompare(left.lastReferenced);
   });
 
+  const entries = ranked.slice(0, limit);
   return {
-    entries: ranked.slice(0, limit),
+    entries,
     fallback,
     fallbackDiagnostic,
     exclusionsReasons: exclusions,
+    diagnostics: {
+      lexicalCandidates: lexicalResults.length,
+      semanticCandidates: semanticCandidates.length,
+      returned: entries.length,
+      elapsedMs: Date.now() - startedAt,
+      semanticElapsedMs,
+      exclusions,
+      fusion: semanticCandidates.length > 0 ? 'rrf-equal' : 'lexical-only',
+      fallback,
+    },
   };
 }
 

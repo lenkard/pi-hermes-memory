@@ -10,6 +10,7 @@ Project artifacts for the one-Agent Hybrid Recall experiment, synthesized using 
 - [Engineering RFC RFC-0001](rfcs/RFC-0001-hybrid-semantic-recall.md)
 - [Scheduled Outcome Review OR-0001](outcomes/OR-0001-semantic-recall.md)
 - [Primary-source infrastructure and repository research](../research/self-hosted-vector-memory-analysis.md)
+- [Semantic Recall operations](../semantic-recall-operations.md)
 
 ## Published discussion
 
@@ -26,8 +27,8 @@ Project artifacts for the one-Agent Hybrid Recall experiment, synthesized using 
 7. [Activate Hybrid Recall for the Agent](https://github.com/lenkard/pi-hermes-memory/issues/8)
 8. [Conduct the Semantic Recall Outcome Review](https://github.com/lenkard/pi-hermes-memory/issues/9)
 
-GitHub sub-issues and native blocking dependencies are authoritative. Issue #2 is the initial frontier.
+GitHub sub-issues and native blocking dependencies are authoritative. Issues #2–#6 implement the evaluation baseline, stable IDs, Derived Index synchronization, Hybrid Recall, and operational controls.
 
 ## Status
 
-The bounded experiment, design decisions, RFC implementation, and tracer-bullet breakdown are approved. Application implementation has not started. Activation remains separately gated by EP-0001.
+Application implementation through operational controls is complete. Activation evidence, explicit owner activation, and the Outcome Review remain separately gated by EP-0001; Semantic Recall remains disabled by default.

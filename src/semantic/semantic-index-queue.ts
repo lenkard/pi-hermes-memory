@@ -221,12 +221,24 @@ export function completeSemanticWork(dbManager: DatabaseManager, work: SemanticQ
   `).run(work.memoryId, work.leaseToken);
 }
 
+export function releaseSemanticWork(
+  dbManager: DatabaseManager,
+  work: SemanticQueueWork,
+  now = new Date(),
+): void {
+  if (!work.leaseToken) return;
+  dbManager.getDb().prepare(`
+    UPDATE semantic_index_queue
+    SET lease_until = NULL, lease_token = NULL, updated_at = ?
+    WHERE memory_id = ? AND lease_token = ?
+  `).run(now.toISOString(), work.memoryId, work.leaseToken);
+}
+
 export function failSemanticWork(
   dbManager: DatabaseManager,
   work: SemanticQueueWork,
   now = new Date(),
   options: SemanticBackoffOptions = {},
-  error = 'semantic indexing failed',
 ): void {
   if (!work.leaseToken) return;
   const attempts = work.attempts + 1;
@@ -236,7 +248,7 @@ export function failSemanticWork(
   const delay = exhausted
     ? 365 * 24 * 60 * 60 * 1000
     : baseMs * (2 ** Math.max(0, attempts - 1)) + Math.floor(Math.random() * jitterMs);
-  const safeError = error.replace(/\s+/g, ' ').slice(0, 300);
+  const safeError = 'semantic indexing failed';
   dbManager.getDb().prepare(`
     UPDATE semantic_index_queue
     SET attempts = ?, next_attempt_at = ?, lease_until = NULL, lease_token = NULL,

@@ -64,6 +64,17 @@ describe('registerMemorySearchTool', () => {
     assert.strictEqual(result.details.success, true);
     assert.strictEqual(result.details.fallback, true);
     assert.ok(!JSON.stringify(result.details).includes('leaked secret'));
+    assert.deepStrictEqual(
+      {
+        lexicalCandidates: result.details.diagnostics.lexicalCandidates,
+        semanticCandidates: result.details.diagnostics.semanticCandidates,
+        returned: result.details.diagnostics.returned,
+        fusion: result.details.diagnostics.fusion,
+        fallback: result.details.diagnostics.fallback,
+      },
+      { lexicalCandidates: 1, semanticCandidates: 0, returned: 1, fusion: 'lexical-only', fallback: true },
+    );
+    assert.doesNotMatch(JSON.stringify(result.details.diagnostics), /fallback hit|embedding endpoint|http|Bearer|\[[\d.,-]{20,}\]/i);
     assert.match(result.content[0].text, /lexical fallback hit/);
     dbManager.close();
   });

@@ -63,6 +63,50 @@ describe('PostgresSemanticIndex', () => {
     assert.equal(calls[0].values?.[5], work().contentHash);
   });
 
+  it('lists, counts, checks health, and deletes only derived rows', async () => {
+    const calls: string[] = [];
+    const client: Queryable = {
+      query: async (text) => {
+        calls.push(text);
+        if (text.includes('memory_id, content_hash, contract_version')) {
+          return { rows: [{ memory_id: 'id', content_hash: 'hash', contract_version: 'contract' }], rowCount: 1 };
+        }
+        if (text.includes('COUNT(*)')) return { rows: [{ count: 2 }], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      },
+    };
+    const index = new PostgresSemanticIndex(client);
+
+    assert.deepStrictEqual(await index.listAll(), [{ memoryId: 'id', contentHash: 'hash', contractVersion: 'contract' }]);
+    assert.equal(await index.count(), 2);
+    assert.equal(await index.health(), true);
+    await index.deleteAll();
+
+    assert.ok(calls.some((sql) => /^SELECT 1$/.test(sql)));
+    assert.ok(calls.some((sql) => /DELETE FROM pi_memory_semantic_index/.test(sql)));
+  });
+
+  it('applies scope filters before exact cosine ranking', async () => {
+    let call: { text: string; values?: unknown[] } | undefined;
+    const client: Queryable = {
+      query: async (text, values) => {
+        call = { text, values };
+        return { rows: [], rowCount: 0 };
+      },
+    };
+    const embedding = Array.from({ length: EMBEDDING_CONTRACT.dimensions }, () => 1 / Math.sqrt(EMBEDDING_CONTRACT.dimensions));
+
+    await new PostgresSemanticIndex(client).search(
+      { vector: embedding },
+      10,
+      { project: 'project-a', target: 'memory', category: 'convention' },
+    );
+
+    assert.match(call?.text ?? '', /WHERE project = \$3 AND target = \$4 AND category = \$5\s+ORDER BY embedding <=> \$1::vector/);
+    assert.deepStrictEqual(call?.values?.slice(1), [10, 'project-a', 'memory', 'convention']);
+    assert.doesNotMatch(call?.text ?? '', /hnsw|ivfflat/i);
+  });
+
   it('deletes by stable Memory ID only', async () => {
     let values: unknown[] | undefined;
     const client: Queryable = {

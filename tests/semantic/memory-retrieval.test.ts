@@ -102,6 +102,18 @@ describe('memory retrieval module', () => {
 
     assert.equal(result.entries.length, 2);
     assert.equal(result.fallback, false);
+    assert.deepStrictEqual(
+      {
+        lexicalCandidates: result.diagnostics.lexicalCandidates,
+        semanticCandidates: result.diagnostics.semanticCandidates,
+        returned: result.diagnostics.returned,
+        fusion: result.diagnostics.fusion,
+        fallback: result.diagnostics.fallback,
+      },
+      { lexicalCandidates: 1, semanticCandidates: 1, returned: 2, fusion: 'rrf-equal', fallback: false },
+    );
+    assert.ok(result.diagnostics.elapsedMs >= 0);
+    assert.ok(result.diagnostics.semanticElapsedMs >= 0);
     const ids = result.entries.map((entry) => entry.memoryId);
     assert.ok(ids.includes('semantic-only'));
   });

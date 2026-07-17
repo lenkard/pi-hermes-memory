@@ -52,6 +52,22 @@ describe('HttpEmbeddingClient', () => {
     });
   });
 
+  it('checks health with bearer auth and returns false on failure', async () => {
+    let request: { url: string; init?: RequestInit } | undefined;
+    globalThis.fetch = (async (url, init) => {
+      request = { url: String(url), init };
+      return new Response('ok', { status: 200 });
+    }) as typeof fetch;
+    const client = new HttpEmbeddingClient('http://embedding.test/', 'test-secret');
+
+    assert.equal(await client.health(), true);
+    assert.equal(request?.url, 'http://embedding.test/health');
+    assert.equal((request?.init?.headers as Record<string, string>).authorization, 'Bearer test-secret');
+
+    globalThis.fetch = (async () => { throw new Error('network down'); }) as typeof fetch;
+    assert.equal(await client.health(), false);
+  });
+
   it('rejects malformed responses without exposing the bearer key', async () => {
     globalThis.fetch = (async () => new Response('upstream failure', { status: 503 })) as typeof fetch;
     const client = new HttpEmbeddingClient('http://embedding.test', 'super-secret-key');

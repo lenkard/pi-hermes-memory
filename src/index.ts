@@ -52,6 +52,8 @@ import { HttpEmbeddingClient } from "./semantic/embedding-client.js";
 import { PostgresSemanticIndex } from "./semantic/postgres-semantic-index.js";
 import { EMBEDDING_CONTRACT } from "./semantic/embedding-contract.js";
 import type { MemoryRetrievalDependencies } from "./semantic/memory-retrieval.js";
+import { runSemanticStartupWork } from "./semantic/semantic-index-worker.js";
+import { registerSemanticCommands } from "./handlers/semantic-commands.js";
 import { getMemoryByMemoryId, searchMemories } from "./store/sqlite-memory-store.js";
 import { scanContent } from "./store/content-scanner.js";
 import { createHash } from "node:crypto";
@@ -87,7 +89,23 @@ export function registerProjectSkillDiscoveryHandler(
   });
 }
 
-function buildSemanticRetrievalDeps(config: ReturnType<typeof loadConfig>, dbManager: DatabaseManager): MemoryRetrievalDependencies | null {
+interface SemanticRuntime {
+  embeddingClient: HttpEmbeddingClient;
+  index: PostgresSemanticIndex;
+  retrieval: MemoryRetrievalDependencies;
+}
+
+async function boundedEmbeddingHealth(client: HttpEmbeddingClient, timeoutMs = 2_000): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await client.health(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildSemanticRuntime(config: ReturnType<typeof loadConfig>, dbManager: DatabaseManager): SemanticRuntime | null {
   const semantic = config.semanticIndex;
   if (!semantic || !semantic.enabled) return null;
   const postgresUrl = process.env[semantic.postgresUrlEnv];
@@ -96,13 +114,18 @@ function buildSemanticRetrievalDeps(config: ReturnType<typeof loadConfig>, dbMan
   if (!postgresUrl || !embeddingEndpoint || !embeddingApiKey) return null;
 
   const embeddingClient = new HttpEmbeddingClient(embeddingEndpoint, embeddingApiKey);
-  const index = PostgresSemanticIndex.fromConnectionString(postgresUrl);
-  return {
+  const index = PostgresSemanticIndex.fromConnectionString(postgresUrl, {
+    connectionTimeoutMillis: 2_000,
+    idleTimeoutMillis: 10_000,
+    query_timeout: 2_000,
+    statement_timeout: 2_000,
+  });
+  const retrieval: MemoryRetrievalDependencies = {
     lexical: (query, options) => searchMemories(dbManager, query, options),
     embedQuery: (query, signal) => embeddingClient.embedQuery(query, signal),
     semanticIndex: {
-      async search(embedded, limit) {
-        return index.search(embedded, limit);
+      async search(embedded, limit, filters) {
+        return index.search(embedded, limit, filters);
       },
     },
     authority: (memoryId) => {
@@ -119,9 +142,10 @@ function buildSemanticRetrievalDeps(config: ReturnType<typeof loadConfig>, dbMan
       } : null;
     },
     scan: (content) => scanContent(content),
-    semanticTimeoutMs: 2000,
+    semanticTimeoutMs: 2_000,
     semanticEnabled: true,
   };
+  return { embeddingClient, index, retrieval };
 }
 
 export default function (pi: ExtensionAPI) {
@@ -155,6 +179,26 @@ export default function (pi: ExtensionAPI) {
     migrationSentinelPath: path.join(globalDir, ".skills-migrated-to-extension-storage"),
   });
   const dbManager = new DatabaseManager(globalDir);
+  const semanticRuntime = buildSemanticRuntime(config, dbManager);
+  const semanticWorkerController = new AbortController();
+  let semanticStartupScheduled = false;
+  let semanticStartupPromise: Promise<unknown> | null = null;
+  const scheduleSemanticWorker = (maxEntries: number): void => {
+    if (!semanticRuntime || semanticWorkerController.signal.aborted) return;
+    semanticStartupPromise = (semanticStartupPromise ?? Promise.resolve())
+      .then(async () => {
+        if (semanticWorkerController.signal.aborted) return;
+        await semanticRuntime.index.ensureSchema();
+        if (semanticWorkerController.signal.aborted) return;
+        return runSemanticStartupWork(
+          dbManager,
+          semanticRuntime.embeddingClient,
+          semanticRuntime.index,
+          { maxEntries, signal: semanticWorkerController.signal },
+        );
+      })
+      .catch(() => undefined);
+  };
   let databaseMigrationPending = shouldMigrateExtensionRoot
     && isDatabaseMigrationPending(legacyGlobalDir, globalDir);
   if (databaseMigrationPending) {
@@ -215,6 +259,11 @@ export default function (pi: ExtensionAPI) {
     await store.loadFromDisk();
     if (projectStore) await projectStore.loadFromDisk();
 
+    if (semanticRuntime && !semanticStartupScheduled) {
+      semanticStartupScheduled = true;
+      scheduleSemanticWorker(20);
+    }
+
     if (persistenceInitialized) scheduleSessionBackfill(dbManager, sessionsDir, {
       notify: (message, level) => {
         const ui = (ctx as { ui?: { notify?: (message: string, level?: string) => void } }).ui;
@@ -246,12 +295,18 @@ export default function (pi: ExtensionAPI) {
   const semanticIndexSink: SemanticIndexSink | null = config.semanticIndex && config.semanticIndex.enabled
     ? {
         enabled: true,
-        contractVersion: "qwen3-embedding-0.6b-q8_0-v1",
+        contractVersion: EMBEDDING_CONTRACT.version,
         enqueueUpsert: (rawEntry, target, project) => {
-          try { enqueueMarkdownUpsert(dbManager, rawEntry, target, project, "qwen3-embedding-0.6b-q8_0-v1"); } catch {}
+          try {
+            enqueueMarkdownUpsert(dbManager, rawEntry, target, project, EMBEDDING_CONTRACT.version);
+            scheduleSemanticWorker(16);
+          } catch {}
         },
         enqueueDelete: (rawEntry) => {
-          try { enqueueMarkdownDelete(dbManager, rawEntry, "qwen3-embedding-0.6b-q8_0-v1"); } catch {}
+          try {
+            enqueueMarkdownDelete(dbManager, rawEntry, EMBEDDING_CONTRACT.version);
+            scheduleSemanticWorker(16);
+          } catch {}
         },
       }
     : null;
@@ -292,6 +347,15 @@ export default function (pi: ExtensionAPI) {
   registerLearnMemoryCommand(pi);
   registerSyncMarkdownMemoriesCommand(pi, dbManager, globalDir, config.projectsMemoryDir, agentRoot);
   registerPreviewContextCommand(pi, store, projectStore, projectName, config);
+  registerSemanticCommands(pi, {
+    dbManager,
+    enabled: config.semanticIndex?.enabled === true,
+    contractVersion: EMBEDDING_CONTRACT.version,
+    index: semanticRuntime?.index ?? null,
+    embeddingHealth: semanticRuntime ? () => boundedEmbeddingHealth(semanticRuntime.embeddingClient) : null,
+    scheduleWorker: () => scheduleSemanticWorker(20),
+    cancelWorker: () => semanticWorkerController.abort(),
+  });
 
   // ── 10. Live session indexing ──
   pi.on("message_end", async (_event, ctx) => {
@@ -302,8 +366,7 @@ export default function (pi: ExtensionAPI) {
 
   // ── 11. SQLite session search + extended memory ──
   registerSessionSearchTool(pi, dbManager, config.sessionSearch ?? { variant: "legacy" });
-  const semanticRetrievalDeps = buildSemanticRetrievalDeps(config, dbManager);
-  registerMemorySearchTool(pi, dbManager, semanticRetrievalDeps);
+  registerMemorySearchTool(pi, dbManager, semanticRuntime?.retrieval ?? null);
   registerIndexSessionsCommand(pi);
 
   // ── 12. Auto-index session on shutdown ──
@@ -336,6 +399,9 @@ export default function (pi: ExtensionAPI) {
     } catch {
       // Silent fail — don't block shutdown
     } finally {
+      semanticWorkerController.abort();
+      try { await semanticStartupPromise; } catch { /* durable queue remains pending */ }
+      try { await semanticRuntime?.index.close(); } catch { /* best effort */ }
       try {
         await Promise.all([
           waitForSessionBackfill(SESSION_BACKFILL_SHUTDOWN_TIMEOUT_MS),
