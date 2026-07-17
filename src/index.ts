@@ -32,7 +32,7 @@ import { indexSession, upsertSessionFileMetadata } from "./store/session-indexer
 import { scheduleSessionBackfill, waitForSessionBackfill, SESSION_BACKFILL_SHUTDOWN_TIMEOUT_MS } from "./handlers/session-backfill.js";
 import { scheduleLiveSessionIndex, waitForLiveSessionIndex, SESSION_LIVE_INDEX_SHUTDOWN_TIMEOUT_MS } from "./handlers/session-live-index.js";
 import { parseSessionFile } from "./store/session-parser.js";
-import { registerMemoryTool } from "./tools/memory-tool.js";
+import { registerMemoryTool, type SemanticIndexSink } from "./tools/memory-tool.js";
 import { registerSkillTool } from "./tools/skill-tool.js";
 import { registerSessionSearchTool } from "./tools/session-search-tool.js";
 import { registerMemorySearchTool } from "./tools/memory-search-tool.js";
@@ -47,6 +47,7 @@ import { registerSwitchProjectCommand } from "./handlers/switch-project.js";
 import { registerIndexSessionsCommand } from "./handlers/index-sessions.js";
 import { registerLearnMemoryCommand } from "./handlers/learn-memory.js";
 import { migrateThenSyncMarkdownMemories, registerSyncMarkdownMemoriesCommand } from "./handlers/sync-markdown-memories.js";
+import { enqueueMarkdownDelete, enqueueMarkdownUpsert } from "./semantic/semantic-index-queue.js";
 import { registerPreviewContextCommand } from "./handlers/preview-context.js";
 import { loadConfig } from "./config.js";
 import { detectProject, detectProjectSkills } from "./project.js";
@@ -198,7 +199,19 @@ export default function (pi: ExtensionAPI) {
   });
 
   // ── 3. Register the memory tool (with project store + SQLite sync) ──
-  registerMemoryTool(pi, store, projectStore, dbManager, projectName);
+  const semanticIndexSink: SemanticIndexSink | null = config.semanticIndex && config.semanticIndex.enabled
+    ? {
+        enabled: true,
+        contractVersion: "qwen3-embedding-0.6b-q8_0-v1",
+        enqueueUpsert: (rawEntry, target, project) => {
+          try { enqueueMarkdownUpsert(dbManager, rawEntry, target, project, "qwen3-embedding-0.6b-q8_0-v1"); } catch {}
+        },
+        enqueueDelete: (rawEntry) => {
+          try { enqueueMarkdownDelete(dbManager, rawEntry, "qwen3-embedding-0.6b-q8_0-v1"); } catch {}
+        },
+      }
+    : null;
+  registerMemoryTool(pi, store, projectStore, dbManager, projectName, semanticIndexSink);
 
   // ── 4. Register the skill tool ──
   registerSkillTool(pi, skillStore);

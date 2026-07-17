@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { MemoryConfig, MemoryOverflowStrategy, ReviewTransport, SessionSearchVariant, ThinkingLevel } from "./types.js";
+import type { MemoryConfig, MemoryOverflowStrategy, ReviewTransport, SemanticIndexConfig, SessionSearchVariant, ThinkingLevel } from "./types.js";
 import {
   DEFAULT_MEMORY_CHAR_LIMIT,
   DEFAULT_USER_CHAR_LIMIT,
@@ -21,6 +21,16 @@ const MEMORY_OVERFLOW_STRATEGIES: readonly MemoryOverflowStrategy[] = ["auto-con
 const SESSION_SEARCH_VARIANTS: readonly SessionSearchVariant[] = ["legacy", "anchors"];
 const REVIEW_TRANSPORTS: readonly ReviewTransport[] = ["direct", "subprocess"];
 const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
+const DEFAULT_SEMANTIC_INDEX: SemanticIndexConfig = {
+  enabled: false,
+  postgresUrlEnv: "PI_HERMES_MEMORY_POSTGRES_URL",
+  embeddingEndpointEnv: "PI_HERMES_MEMORY_EMBEDDING_ENDPOINT",
+  embeddingApiKeyEnv: "PI_HERMES_MEMORY_EMBEDDING_API_KEY",
+};
+
+function isEnvironmentVariableName(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Z_][A-Z0-9_]*$/.test(value.trim());
+}
 
 function isReviewTransport(value: unknown): value is ReviewTransport {
   return typeof value === "string" && REVIEW_TRANSPORTS.includes(value as ReviewTransport);
@@ -62,6 +72,7 @@ const DEFAULT_CONFIG: MemoryConfig = {
   nudgeToolCalls: DEFAULT_NUDGE_TOOL_CALLS,
   projectsMemoryDir: DEFAULT_PROJECTS_MEMORY_DIR,
   sessionSearch: { variant: "legacy" },
+  semanticIndex: DEFAULT_SEMANTIC_INDEX,
 };
 
 export const DEFAULT_CONFIG_PATH = path.join(
@@ -135,6 +146,21 @@ export function loadConfig(configPath = DEFAULT_CONFIG_PATH): MemoryConfig {
         isSessionSearchVariant(parsed.sessionSearch.variant)
       ) {
         config.sessionSearch = { variant: parsed.sessionSearch.variant };
+      }
+      if (typeof parsed.semanticIndex === "object" && parsed.semanticIndex !== null) {
+        const semanticIndex = parsed.semanticIndex as Record<string, unknown>;
+        config.semanticIndex = {
+          enabled: typeof semanticIndex.enabled === "boolean" ? semanticIndex.enabled : DEFAULT_SEMANTIC_INDEX.enabled,
+          postgresUrlEnv: isEnvironmentVariableName(semanticIndex.postgresUrlEnv)
+            ? semanticIndex.postgresUrlEnv.trim()
+            : DEFAULT_SEMANTIC_INDEX.postgresUrlEnv,
+          embeddingEndpointEnv: isEnvironmentVariableName(semanticIndex.embeddingEndpointEnv)
+            ? semanticIndex.embeddingEndpointEnv.trim()
+            : DEFAULT_SEMANTIC_INDEX.embeddingEndpointEnv,
+          embeddingApiKeyEnv: isEnvironmentVariableName(semanticIndex.embeddingApiKeyEnv)
+            ? semanticIndex.embeddingApiKeyEnv.trim()
+            : DEFAULT_SEMANTIC_INDEX.embeddingApiKeyEnv,
+        };
       }
       if (typeof parsed.llmModelOverride === "string") {
         const trimmed = parsed.llmModelOverride.trim();

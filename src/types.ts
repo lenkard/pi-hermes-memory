@@ -17,6 +17,17 @@ export interface SessionSearchConfig {
   variant: SessionSearchVariant;
 }
 
+export interface SemanticIndexConfig {
+  /** Semantic indexing remains disabled until explicit opt-in. */
+  enabled: boolean;
+  /** Environment variable containing the PostgreSQL connection URL. */
+  postgresUrlEnv: string;
+  /** Environment variable containing the embedding endpoint URL. */
+  embeddingEndpointEnv: string;
+  /** Environment variable containing the embedding bearer key. */
+  embeddingApiKeyEnv: string;
+}
+
 export interface MemoryConfig {
   /** Prompt memory mode. Default: policy-only */
   memoryMode: "policy-only" | "legacy-inject";
@@ -52,6 +63,8 @@ export interface MemoryConfig {
   projectsMemoryDir?: string;
   /** Session search configuration. Default: { variant: "legacy" } */
   sessionSearch?: SessionSearchConfig;
+  /** Optional semantic Derived Index configuration; disabled unless enabled is true. */
+  semanticIndex?: SemanticIndexConfig;
   /** Override model used for child pi -p subprocess LLM calls. Default: unset */
   llmModelOverride?: string;
   /** Override thinking level used for child pi -p subprocess LLM calls. Default: unset */

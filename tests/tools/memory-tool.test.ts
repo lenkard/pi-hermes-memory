@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { registerMemoryTool } from "../../src/tools/memory-tool.js";
+import { enqueueMarkdownDelete, enqueueMarkdownUpsert, listSemanticWork } from "../../src/semantic/semantic-index-queue.js";
 import { MemoryStore } from "../../src/store/memory-store.js";
 import { DatabaseManager } from "../../src/store/db.js";
 import { getMemories, syncMemoryEntry } from "../../src/store/sqlite-memory-store.js";
@@ -527,5 +528,57 @@ describe("registerMemoryTool", () => {
     await capturedResult.execute("tc-1", { action: "remove", target: "memory", old_text: "old entry" }, undefined as any, undefined as any, undefined as any);
 
     assert.deepStrictEqual(removeArgs, ["memory", "old entry"], "should pass target, old_text to store.remove");
+  });
+
+  it("enqueues semantic upsert and delete only when the sink is enabled", async () => {
+    const memoryDir = fs.mkdtempSync(path.join(os.tmpdir(), "memory-tool-semantic-"));
+    const store = new MemoryStore({
+      memoryDir,
+      memoryCharLimit: 5_000,
+      userCharLimit: 5_000,
+      projectCharLimit: 5_000,
+      memoryMode: "legacy-inject",
+      nudgeInterval: 10,
+      reviewEnabled: false,
+      flushOnCompact: false,
+      flushOnShutdown: false,
+      flushMinTurns: 6,
+      autoConsolidate: false,
+      correctionDetection: false,
+      failureInjectionEnabled: false,
+      failureInjectionMaxAgeDays: 7,
+      failureInjectionMaxEntries: 5,
+      nudgeToolCalls: 15,
+    } as any);
+    await store.loadFromDisk();
+
+    let captured: any;
+    const mockPi = { registerTool: (def: any) => { captured = def; } } as unknown as ExtensionAPI;
+    const sink = {
+      enabled: true,
+      contractVersion: "qwen3-embedding-0.6b-q8_0-v1",
+      enqueueUpsert: (raw: string, target: any, project: any) => enqueueMarkdownUpsert(dbManager, raw, target, project, sink.contractVersion),
+      enqueueDelete: (raw: string) => enqueueMarkdownDelete(dbManager, raw, sink.contractVersion),
+    };
+    registerMemoryTool(mockPi, store, null, dbManager, null, sink);
+
+    await captured.execute("t", { action: "add", target: "memory", content: "durable semantic fact" }, undefined as any, undefined as any, undefined as any);
+    let work = listSemanticWork(dbManager, new Date().toISOString());
+    assert.equal(work.length, 1);
+    assert.equal(work[0].operation, "upsert");
+    assert.equal(work[0].content, "durable semantic fact");
+
+    await captured.execute("t", { action: "replace", target: "memory", content: "replacement semantic fact", old_text: "durable semantic fact" }, undefined as any, undefined as any, undefined as any);
+    work = listSemanticWork(dbManager, new Date().toISOString());
+    assert.equal(work.length, 1);
+    assert.equal(work[0].operation, "upsert");
+    assert.equal(work[0].content, "replacement semantic fact");
+
+    await captured.execute("t", { action: "remove", target: "memory", old_text: "replacement semantic fact" }, undefined as any, undefined as any, undefined as any);
+    work = listSemanticWork(dbManager, new Date().toISOString());
+    assert.equal(work.length, 1);
+    assert.equal(work[0].operation, "delete");
+
+    fs.rmSync(memoryDir, { recursive: true, force: true });
   });
 });

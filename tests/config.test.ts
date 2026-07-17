@@ -35,8 +35,56 @@ describe("loadConfig", () => {
     assert.strictEqual(config.failureInjectionMaxEntries, 5);
     assert.strictEqual(config.projectsMemoryDir, "projects-memory");
     assert.deepStrictEqual(config.sessionSearch, { variant: "legacy" });
+    assert.deepStrictEqual(config.semanticIndex, {
+      enabled: false,
+      postgresUrlEnv: "PI_HERMES_MEMORY_POSTGRES_URL",
+      embeddingEndpointEnv: "PI_HERMES_MEMORY_EMBEDDING_ENDPOINT",
+      embeddingApiKeyEnv: "PI_HERMES_MEMORY_EMBEDDING_API_KEY",
+    });
     assert.strictEqual(config.llmModelOverride, undefined);
     assert.strictEqual(config.llmThinkingOverride, undefined);
+  });
+
+  it("accepts semantic indexing opt-in without storing endpoint or secret values", () => {
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      semanticIndex: {
+        enabled: true,
+        postgresUrlEnv: "CUSTOM_DATABASE_URL",
+        embeddingEndpointEnv: "CUSTOM_EMBEDDING_URL",
+        embeddingApiKeyEnv: "CUSTOM_EMBEDDING_KEY",
+        postgresUrl: "postgresql://should-not-be-read-from-config",
+        embeddingApiKey: "secret-value",
+      },
+    }));
+
+    const config = loadConfig(TEST_CONFIG_PATH);
+
+    assert.deepStrictEqual(config.semanticIndex, {
+      enabled: true,
+      postgresUrlEnv: "CUSTOM_DATABASE_URL",
+      embeddingEndpointEnv: "CUSTOM_EMBEDDING_URL",
+      embeddingApiKeyEnv: "CUSTOM_EMBEDDING_KEY",
+    });
+    assert.equal("postgresUrl" in (config.semanticIndex as object), false);
+    assert.equal("embeddingApiKey" in (config.semanticIndex as object), false);
+  });
+
+  it("ignores invalid semantic environment variable names", () => {
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      semanticIndex: {
+        enabled: true,
+        postgresUrlEnv: "postgres://not-an-env-name",
+        embeddingEndpointEnv: "",
+        embeddingApiKeyEnv: "KEY-NAME",
+      },
+    }));
+
+    assert.deepStrictEqual(loadConfig(TEST_CONFIG_PATH).semanticIndex, {
+      enabled: true,
+      postgresUrlEnv: "PI_HERMES_MEMORY_POSTGRES_URL",
+      embeddingEndpointEnv: "PI_HERMES_MEMORY_EMBEDDING_ENDPOINT",
+      embeddingApiKeyEnv: "PI_HERMES_MEMORY_EMBEDDING_API_KEY",
+    });
   });
 
   it("overrides defaults when config file exists", () => {

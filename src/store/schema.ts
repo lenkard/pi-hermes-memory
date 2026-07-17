@@ -111,6 +111,28 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project);
   CREATE INDEX IF NOT EXISTS idx_memories_target ON memories(target);
   CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category);
+
+  -- Durable work for the optional semantic Derived Index
+  CREATE TABLE IF NOT EXISTS semantic_index_queue (
+    memory_id TEXT PRIMARY KEY,
+    operation TEXT NOT NULL CHECK (operation IN ('upsert', 'delete')),
+    content TEXT,
+    project TEXT,
+    target TEXT NOT NULL CHECK (target IN ('memory', 'user', 'failure')),
+    category TEXT,
+    content_hash TEXT,
+    contract_version TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT NOT NULL,
+    lease_until TEXT,
+    lease_token TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_semantic_queue_pending
+    ON semantic_index_queue(next_attempt_at, lease_until, attempts);
   CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
   CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at);
   CREATE INDEX IF NOT EXISTS idx_session_files_session_id ON session_files(session_id);

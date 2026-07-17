@@ -18,6 +18,7 @@ import {
   replaceSyncedMemories,
   syncMemoryEntry,
 } from "../store/sqlite-memory-store.js";
+import { enqueueMarkdownDelete, enqueueMarkdownUpsert } from "../semantic/semantic-index-queue.js";
 import { MEMORY_TOOL_DESCRIPTION } from "../constants.js";
 import type { MemoryCategory, MemoryResult } from "../types.js";
 
@@ -212,12 +213,20 @@ async function reconcileStoreScope(
   }
 }
 
+export interface SemanticIndexSink {
+  enabled: boolean;
+  contractVersion: string;
+  enqueueUpsert(rawEntry: string, target: "memory" | "user" | "failure", project: string | null): void;
+  enqueueDelete(rawEntry: string): void;
+}
+
 export function registerMemoryTool(
   pi: ExtensionAPI,
   store: MemoryStore,
   projectStore: MemoryStore | null,
   dbManager: DatabaseManager | null = null,
   projectName?: string | null,
+  semanticIndex: SemanticIndexSink | null = null,
 ): void {
   const reconciledStores = new WeakSet<MemoryStore>();
   if (typeof store.setMutationObserver === "function") {
@@ -315,6 +324,11 @@ export function registerMemoryTool(
               syncWarning = await syncAddToSqlite(rawTarget, content, undefined, undefined, dbManager, projectName);
             }
           }
+          if (result.success && semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function") {
+            const rawEntries = store_.getRawEntriesForSync(target);
+            const added = rawEntries[rawEntries.length - 1];
+            if (added) semanticIndex.enqueueUpsert(added, target, sqliteProjectFor(rawTarget, projectName) ?? null);
+          }
           break;
 
         case "replace":
@@ -348,6 +362,10 @@ export function registerMemoryTool(
           }
           result = await store_.replace(target, old_text, content);
           if (result.success && !syncHandled) syncWarning = await syncReplaceToSqlite(rawTarget, old_text, content, dbManager, projectName);
+          if (result.success && semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function") {
+            const match = store_.getRawEntriesForSync(target).find((entry) => entry.includes(content));
+            if (match) semanticIndex.enqueueUpsert(match, target, sqliteProjectFor(rawTarget, projectName) ?? null);
+          }
           break;
 
         case "remove":
@@ -365,8 +383,13 @@ export function registerMemoryTool(
               details: {},
             };
           }
+          let removedEntry: string | undefined;
+          if (semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function") {
+            removedEntry = store_.getRawEntriesForSync(target).find((entry) => entry.includes(old_text));
+          }
           result = await store_.remove(target, old_text);
           if (result.success && !syncHandled) syncWarning = await syncRemoveFromSqlite(rawTarget, old_text, dbManager, projectName);
+          if (result.success && semanticIndex?.enabled && removedEntry) semanticIndex.enqueueDelete(removedEntry);
           break;
 
         default:
