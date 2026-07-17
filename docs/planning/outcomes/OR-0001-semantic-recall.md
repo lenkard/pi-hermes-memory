@@ -14,6 +14,8 @@ review_date: TBD_AFTER_ACTIVATION
 
 This review is scheduled for the later of two enabled weeks or 100 semantic searches. Do not complete it before the eligibility condition is met; extend observation rather than infer from insufficient use.
 
+**Pre-activation status:** the holdout gates failed, so Semantic Recall was not enabled and no outcome observation window began. See the [activation review](../evidence/results/activation-review.md).
+
 ## 1. Decision
 
 - **Decision owner:** lenkard

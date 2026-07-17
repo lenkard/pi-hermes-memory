@@ -19,6 +19,7 @@ import {
   syncMemoryEntry,
 } from "../store/sqlite-memory-store.js";
 import { enqueueMarkdownDelete, enqueueMarkdownUpsert } from "../semantic/semantic-index-queue.js";
+import { parseMemoryMetadata } from "../store/memory-metadata.js";
 import { MEMORY_TOOL_DESCRIPTION } from "../constants.js";
 import type { MemoryCategory, MemoryResult } from "../types.js";
 
@@ -213,6 +214,30 @@ async function reconcileStoreScope(
   }
 }
 
+function enqueueSemanticMutationDiff(
+  before: readonly string[],
+  after: readonly string[],
+  target: "memory" | "user" | "failure",
+  project: string | null,
+  sink: SemanticIndexSink,
+): void {
+  const beforeById = new Map(before.flatMap((rawEntry) => {
+    const memoryId = parseMemoryMetadata(rawEntry).memoryId;
+    return memoryId ? [[memoryId, rawEntry] as const] : [];
+  }));
+  const afterById = new Map(after.flatMap((rawEntry) => {
+    const memoryId = parseMemoryMetadata(rawEntry).memoryId;
+    return memoryId ? [[memoryId, rawEntry] as const] : [];
+  }));
+
+  for (const [memoryId, rawEntry] of afterById) {
+    if (beforeById.get(memoryId) !== rawEntry) sink.enqueueUpsert(rawEntry, target, project);
+  }
+  for (const [memoryId, rawEntry] of beforeById) {
+    if (!afterById.has(memoryId)) sink.enqueueDelete(rawEntry);
+  }
+}
+
 export interface SemanticIndexSink {
   enabled: boolean;
   contractVersion: string;
@@ -291,6 +316,9 @@ export function registerMemoryTool(
       let result: MemoryResult;
       let syncWarning: string | null = null;
       const syncHandled = reconciledStores.has(store_);
+      const semanticBefore = semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function"
+        ? store_.getRawEntriesForSync(target)
+        : [];
       switch (action) {
         case "add":
           if (!content) {
@@ -323,11 +351,6 @@ export function registerMemoryTool(
               await syncEvictionsFromSqlite(rawTarget, result.evicted_entries, dbManager, projectName);
               syncWarning = await syncAddToSqlite(rawTarget, content, undefined, undefined, dbManager, projectName);
             }
-          }
-          if (result.success && semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function") {
-            const rawEntries = store_.getRawEntriesForSync(target);
-            const added = rawEntries[rawEntries.length - 1];
-            if (added) semanticIndex.enqueueUpsert(added, target, sqliteProjectFor(rawTarget, projectName) ?? null);
           }
           break;
 
@@ -362,10 +385,6 @@ export function registerMemoryTool(
           }
           result = await store_.replace(target, old_text, content);
           if (result.success && !syncHandled) syncWarning = await syncReplaceToSqlite(rawTarget, old_text, content, dbManager, projectName);
-          if (result.success && semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function") {
-            const match = store_.getRawEntriesForSync(target).find((entry) => entry.includes(content));
-            if (match) semanticIndex.enqueueUpsert(match, target, sqliteProjectFor(rawTarget, projectName) ?? null);
-          }
           break;
 
         case "remove":
@@ -383,13 +402,8 @@ export function registerMemoryTool(
               details: {},
             };
           }
-          let removedEntry: string | undefined;
-          if (semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function") {
-            removedEntry = store_.getRawEntriesForSync(target).find((entry) => entry.includes(old_text));
-          }
           result = await store_.remove(target, old_text);
           if (result.success && !syncHandled) syncWarning = await syncRemoveFromSqlite(rawTarget, old_text, dbManager, projectName);
-          if (result.success && semanticIndex?.enabled && removedEntry) semanticIndex.enqueueDelete(removedEntry);
           break;
 
         default:
@@ -397,6 +411,16 @@ export function registerMemoryTool(
             success: false,
             error: `Unknown action '${action}'. Use: add, replace, remove`,
           };
+      }
+
+      if (result.success && semanticIndex?.enabled && typeof store_.getRawEntriesForSync === "function") {
+        enqueueSemanticMutationDiff(
+          semanticBefore,
+          store_.getRawEntriesForSync(target),
+          target,
+          sqliteProjectFor(rawTarget, projectName) ?? null,
+          semanticIndex,
+        );
       }
 
       if (result.success && !syncHandled && typeof store_.getRawEntriesForSync === "function") {

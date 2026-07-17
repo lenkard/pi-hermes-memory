@@ -64,6 +64,7 @@ export function registerMemorySearchTool(
   pi: ExtensionAPI,
   dbManager: DatabaseManager,
   semanticDeps: MemoryRetrievalDependencies | null = null,
+  activeProject: string | null = null,
 ): void {
   pi.registerTool({
     name: 'memory_search',
@@ -76,6 +77,8 @@ Use cases:
 - Find user preferences: "What are the user's testing preferences?"
 - Search for past failures: "memory_search('auth', category='failure')"
 
+By default, returns only global memories and memories for the Active Project. Pass project explicitly to search another project.
+
 Returns matching memory entries with project context and dates.`,
     promptSnippet: 'Search extended memory store (unlimited capacity)',
     promptGuidelines: [
@@ -85,12 +88,15 @@ Returns matching memory entries with project context and dates.`,
     ],
     parameters: Type.Object({
       query: Type.String({ description: 'Search query. Use natural language or specific terms.' }),
-      project: Type.Optional(Type.String({ description: 'Filter by project name. Pass null for global memories only.' })),
+      project: Type.Optional(Type.Union([
+        Type.String({ description: 'Filter by project name.' }),
+        Type.Null({ description: 'Search global memories only.' }),
+      ])),
       target: Type.Optional(StringEnum(['memory', 'user', 'failure'] as const, { description: 'Filter by target type (memory, user, or failure).' })),
       category: Type.Optional(StringEnum(['failure', 'correction', 'insight', 'preference', 'convention', 'tool-quirk'] as const, { description: 'Filter by memory category.' })),
       limit: Type.Optional(Type.Number({ description: 'Maximum results to return (default: 10, max: 20).' })),
     }),
-    execute: async (_id: string, args: { query: string; project?: string; target?: string; category?: string; limit?: number }) => {
+    execute: async (_id: string, args: { query: string; project?: string | null; target?: string; category?: string; limit?: number }) => {
       const query = args.query;
       const project = args.project;
       const target = args.target;
@@ -109,7 +115,14 @@ Returns matching memory entries with project context and dates.`,
       }
 
       const deps = semanticDeps ?? lexicalOnlyDependencies(dbManager);
-      const retrieval = await retrieveMemories(dbManager, query, { project, target, category, limit }, deps);
+      const effectiveProject = project === undefined && activeProject === null ? null : project;
+      const retrieval = await retrieveMemories(dbManager, query, {
+        project: effectiveProject,
+        activeProject: effectiveProject === undefined ? activeProject ?? undefined : undefined,
+        target,
+        category,
+        limit,
+      }, deps);
       const results = retrieval.entries;
 
       if (results.length === 0) {

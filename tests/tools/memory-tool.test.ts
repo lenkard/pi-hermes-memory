@@ -530,6 +530,54 @@ describe("registerMemoryTool", () => {
     assert.deepStrictEqual(removeArgs, ["memory", "old entry"], "should pass target, old_text to store.remove");
   });
 
+  it("enqueues every stable ID changed by multi-scope replacement and removal", async () => {
+    const memoryDir = fs.mkdtempSync(path.join(os.tmpdir(), "memory-tool-semantic-multi-"));
+    const store = new MemoryStore({
+      memoryDir,
+      memoryCharLimit: 5_000,
+      userCharLimit: 5_000,
+      projectCharLimit: 5_000,
+      memoryMode: "legacy-inject",
+      nudgeInterval: 10,
+      reviewEnabled: false,
+      flushOnCompact: false,
+      flushOnShutdown: false,
+      flushMinTurns: 6,
+      autoConsolidate: false,
+      correctionDetection: false,
+      failureInjectionEnabled: false,
+      failureInjectionMaxAgeDays: 7,
+      failureInjectionMaxEntries: 5,
+      nudgeToolCalls: 15,
+    } as any);
+    await store.loadFromDisk();
+    await store.addFailure("shared correction", { category: "correction", project: "project-a" });
+    await store.addFailure("shared correction", { category: "correction", project: "project-b" });
+
+    let captured: any;
+    const mockPi = { registerTool: (definition: any) => { captured = definition; } } as unknown as ExtensionAPI;
+    const sink = {
+      enabled: true,
+      contractVersion: "qwen3-embedding-0.6b-q8_0-v1",
+      enqueueUpsert: (raw: string, target: any, project: any) => enqueueMarkdownUpsert(dbManager, raw, target, project, sink.contractVersion),
+      enqueueDelete: (raw: string) => enqueueMarkdownDelete(dbManager, raw, sink.contractVersion),
+    };
+    registerMemoryTool(mockPi, store, null, dbManager, null, sink);
+
+    await captured.execute("t", { action: "replace", target: "failure", old_text: "[correction] shared correction", content: "[correction] replacement" }, undefined as any, undefined as any, undefined as any);
+    let work = listSemanticWork(dbManager, new Date().toISOString());
+    assert.equal(work.length, 2);
+    assert.ok(work.every((entry) => entry.operation === "upsert" && entry.category === "correction"));
+    assert.deepStrictEqual(work.map((entry) => entry.project).sort(), ["project-a", "project-b"]);
+
+    await captured.execute("t", { action: "remove", target: "failure", old_text: "[correction] replacement" }, undefined as any, undefined as any, undefined as any);
+    work = listSemanticWork(dbManager, new Date().toISOString());
+    assert.equal(work.length, 2);
+    assert.ok(work.every((entry) => entry.operation === "delete"));
+
+    fs.rmSync(memoryDir, { recursive: true, force: true });
+  });
+
   it("enqueues semantic upsert and delete only when the sink is enabled", async () => {
     const memoryDir = fs.mkdtempSync(path.join(os.tmpdir(), "memory-tool-semantic-"));
     const store = new MemoryStore({

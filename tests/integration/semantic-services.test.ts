@@ -87,6 +87,12 @@ it('repairs missing, stale, changed-contract, and orphaned rows against real ser
       assert.equal(rows.get(memory.memoryId)?.contractVersion, EMBEDDING_CONTRACT.version);
     }
     assert.equal(rows.has(orphan.memoryId), false);
+
+    const queryEmbedding = await embedding.embedQuery('integration memory');
+    const activeResults = await index.search({ vector: queryEmbedding }, 10, { activeProject: 'semantic-integration-test' });
+    assert.ok(activeResults.some((row) => ids.slice(0, 3).includes(row.memoryId)));
+    const otherProjectResults = await index.search({ vector: queryEmbedding }, 10, { activeProject: 'different-project' });
+    assert.ok(otherProjectResults.every((row) => !ids.includes(row.memoryId)));
   } finally {
     for (const id of ids) {
       try { await index.delete(id); } catch {}

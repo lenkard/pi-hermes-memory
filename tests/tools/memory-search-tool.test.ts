@@ -24,6 +24,7 @@ describe('registerMemorySearchTool', () => {
   it('returns a broader natural-language match when strict term matching misses', async () => {
     const dbManager = makeDbManager();
     addMemory(dbManager, "user's name is Naruto", 'user');
+    addMemory(dbManager, "project Naruto alias", 'user', 'other-project');
 
     let captured: any;
     const mockPi = {
@@ -40,6 +41,26 @@ describe('registerMemorySearchTool', () => {
     assert.strictEqual(result.details.count, 1);
     assert.match(result.content[0].text, /Naruto/);
 
+    dbManager.close();
+  });
+
+  it('defaults to global plus Active Project and permits an explicit project override', async () => {
+    const dbManager = makeDbManager();
+    addMemory(dbManager, 'shared scope global', 'memory', null);
+    addMemory(dbManager, 'shared scope active', 'memory', 'active-project');
+    addMemory(dbManager, 'shared scope other', 'memory', 'other-project');
+    let captured: any;
+    const mockPi = { registerTool: (def: any) => { captured = def; } } as any;
+    registerMemorySearchTool(mockPi, dbManager, null, 'active-project');
+
+    const defaultResult = await captured.execute('tc', { query: 'shared scope' });
+    assert.match(defaultResult.content[0].text, /shared scope global/);
+    assert.match(defaultResult.content[0].text, /shared scope active/);
+    assert.doesNotMatch(defaultResult.content[0].text, /shared scope other/);
+
+    const explicitResult = await captured.execute('tc', { query: 'shared scope', project: 'other-project' });
+    assert.match(explicitResult.content[0].text, /shared scope other/);
+    assert.doesNotMatch(explicitResult.content[0].text, /shared scope active/);
     dbManager.close();
   });
 

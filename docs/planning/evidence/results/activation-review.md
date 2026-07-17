@@ -37,6 +37,7 @@ No cutoff or ranking parameter was changed after viewing holdout.
 - [Holdout report](hybrid-holdout.md) ([JSON](hybrid-holdout.json))
 - [Lexical baseline](lexical-baseline.md) ([JSON](lexical-baseline.json))
 - [Operational controls](../../../semantic-recall-operations.md)
+- [Final Standards and Spec review](final-code-review.md)
 
 ## Exact verification commands
 
@@ -85,7 +86,8 @@ Automated tests cover legacy stable-ID migration, replacement/deletion identity,
 
 - The fixture is synthetic and small; owner-reviewed real Curated Memory remains limited.
 - The lexical development split was already strong, leaving little measurable development gain.
-- The holdout shows the current fusion/cutoff does not improve paraphrase Recall@5 and still returns irrelevant memories for the no-match case.
+- The holdout shows the evaluated fusion/cutoff does not improve paraphrase Recall@5 and still returns irrelevant memories for the no-match case.
+- Final review subsequently fixed direct-write multi-ID propagation and default Active Project filtering. The holdout was intentionally not rerun, so it does not certify that post-review code either.
 - Outage evidence uses deterministic fault injection; real protocol integration and reconciliation were separately exercised against the deployed services.
 - One Agent and one CPU embedding service do not establish general product performance.
 

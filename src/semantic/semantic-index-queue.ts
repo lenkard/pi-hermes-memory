@@ -32,6 +32,18 @@ export interface SemanticBackoffOptions {
   jitterMs?: number;
 }
 
+const MEMORY_CATEGORIES = new Set<MemoryCategory>([
+  'failure', 'correction', 'insight', 'preference', 'convention', 'tool-quirk',
+]);
+
+function categoryFromContent(content: string, target: SemanticQueueMemory['target']): MemoryCategory | null {
+  if (target !== 'failure') return null;
+  const match = content.match(/^\[([^\]]+)\]/);
+  return match && MEMORY_CATEGORIES.has(match[1] as MemoryCategory)
+    ? match[1] as MemoryCategory
+    : null;
+}
+
 function hashContent(content: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
@@ -141,9 +153,9 @@ export function enqueueMarkdownUpsert(
   enqueue(dbManager, {
     memoryId: metadata.memoryId,
     content: metadata.text,
-    project,
+    project: project ?? (target === 'failure' ? metadata.project : null),
     target,
-    category: null,
+    category: categoryFromContent(metadata.text, target),
   }, 'upsert', contractVersion, now);
 }
 

@@ -28,12 +28,13 @@ export interface SemanticCandidateIndex {
   search(
     embedded: EmbeddedQuery,
     limit: number,
-    filters: { project?: string | null; target?: string; category?: MemoryCategory | null },
+    filters: { project?: string | null; activeProject?: string; target?: string; category?: MemoryCategory | null },
   ): Promise<SemanticCandidate[]>;
 }
 
 export interface MemoryRetrievalRequest {
-  project?: string;
+  project?: string | null;
+  activeProject?: string;
   target?: string;
   category?: MemoryCategory;
   limit?: number;
@@ -71,7 +72,7 @@ export interface MemoryRetrievalResult {
 }
 
 export interface MemoryRetrievalDependencies {
-  lexical(query: string, options: { project?: string; target?: string; category?: MemoryCategory; limit?: number }): SqliteMemoryEntry[];
+  lexical(query: string, options: { project?: string | null; activeProject?: string; target?: string; category?: MemoryCategory; limit?: number }): SqliteMemoryEntry[];
   embedQuery?(query: string, signal?: AbortSignal): Promise<readonly number[]>;
   semanticIndex?: SemanticCandidateIndex;
   authority(memoryId: string): AuthorityRecord | null;
@@ -116,7 +117,12 @@ export async function retrieveMemories(
       semanticCandidates = (await deps.semanticIndex.search(
         { vector },
         semanticCandidateLimit,
-        { project: request.project, target: request.target, category: request.category },
+        {
+          project: request.project,
+          activeProject: request.project === undefined ? request.activeProject : undefined,
+          target: request.target,
+          category: request.category,
+        },
       )).filter((candidate) => (
         candidate.distance === undefined
         || deps.semanticMaxDistance === undefined
@@ -158,6 +164,15 @@ export async function retrieveMemories(
       continue;
     }
     if (request.project !== undefined && authority.project !== (request.project ?? null)) {
+      exclusions.scope = (exclusions.scope ?? 0) + 1;
+      continue;
+    }
+    if (
+      request.project === undefined
+      && request.activeProject
+      && authority.project !== null
+      && authority.project !== request.activeProject
+    ) {
       exclusions.scope = (exclusions.scope ?? 0) + 1;
       continue;
     }

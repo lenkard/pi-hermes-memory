@@ -88,12 +88,16 @@ describe('semantic index queue', () => {
       null,
       contractVersion,
     );
+    let work = listSemanticWork(dbManager, new Date().toISOString());
+    assert.equal(work.length, 1);
+    assert.equal(work[0].project, null);
+
     enqueueMarkdownDelete(
       dbManager,
       'durable fact <!-- memory_id=11111111-1111-4111-8111-111111111111, created=2026-07-17, last=2026-07-17 -->',
       contractVersion,
     );
-    const work = listSemanticWork(dbManager, new Date().toISOString());
+    work = listSemanticWork(dbManager, new Date().toISOString());
     assert.equal(work.length, 1);
     assert.equal(work[0].operation, 'delete');
     assert.equal(work[0].content, null);

@@ -108,6 +108,22 @@ describe('PostgresSemanticIndex', () => {
     assert.deepStrictEqual(results, [{ memoryId: 'id', contentHash: 'hash', distance: 0.25 }]);
   });
 
+  it('limits default Active Project ranking to global and active rows', async () => {
+    let call: { text: string; values?: unknown[] } | undefined;
+    const client: Queryable = {
+      query: async (text, values) => {
+        call = { text, values };
+        return { rows: [], rowCount: 0 };
+      },
+    };
+    const embedding = Array.from({ length: EMBEDDING_CONTRACT.dimensions }, () => 1 / Math.sqrt(EMBEDDING_CONTRACT.dimensions));
+
+    await new PostgresSemanticIndex(client).search({ vector: embedding }, 10, { activeProject: 'project-a' });
+
+    assert.match(call?.text ?? '', /WHERE \(project IS NULL OR project = \$3\)/);
+    assert.deepStrictEqual(call?.values?.slice(1), [10, 'project-a']);
+  });
+
   it('deletes by stable Memory ID only', async () => {
     let values: unknown[] | undefined;
     const client: Queryable = {

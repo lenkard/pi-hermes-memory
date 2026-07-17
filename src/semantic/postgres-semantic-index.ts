@@ -108,7 +108,7 @@ export class PostgresSemanticIndex {
   async search(
     embedded: { vector: readonly number[] },
     limit: number,
-    filters: { project?: string | null; target?: string; category?: string | null } = {},
+    filters: { project?: string | null; activeProject?: string; target?: string; category?: string | null } = {},
   ): Promise<Array<{ memoryId: string; contentHash: string; distance: number }>> {
     if (!validateEmbeddingVector(embedded.vector, this.contract)) {
       throw new Error('Semantic search vector does not satisfy the active contract.');
@@ -119,6 +119,9 @@ export class PostgresSemanticIndex {
     if (filters.project !== undefined) {
       conditions.push(`project ${filters.project === null ? 'IS NULL' : `= $${paramIndex++}`}`);
       if (filters.project !== null) values.push(filters.project);
+    } else if (filters.activeProject) {
+      conditions.push(`(project IS NULL OR project = $${paramIndex++})`);
+      values.push(filters.activeProject);
     }
     if (filters.target) {
       conditions.push(`target = $${paramIndex++}`);

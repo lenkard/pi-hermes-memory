@@ -212,12 +212,14 @@ describe('memory retrieval module', () => {
     assert.deepEqual(result.exclusionsReasons, { unsafe: 1 });
   });
 
-  it('excludes wrong-project semantic candidates when an active project is requested', async () => {
+  it('excludes wrong-project semantic candidates in default Active Project scope', async () => {
     addMemory(dbManager, 'global hit', 'memory', null);
     addMemory(dbManager, 'other project hit', 'memory', 'other-project');
+    let observedFilters: unknown;
     const depsValue = deps({
       semanticIndex: {
-        async search() {
+        async search(_embedding, _limit, filters) {
+          observedFilters = filters;
           return [
             { memoryId: 'wrong-project', contentHash: 'hash' },
           ];
@@ -240,8 +242,14 @@ describe('memory retrieval module', () => {
       },
     });
 
-    const result = await retrieveMemories(dbManager, 'query', { project: 'active-project' }, depsValue);
+    const result = await retrieveMemories(dbManager, 'query', { activeProject: 'active-project' }, depsValue);
 
+    assert.deepEqual(observedFilters, {
+      project: undefined,
+      activeProject: 'active-project',
+      target: undefined,
+      category: undefined,
+    });
     assert.equal(result.entries.length, 0);
     assert.deepEqual(result.exclusionsReasons, { scope: 1 });
   });

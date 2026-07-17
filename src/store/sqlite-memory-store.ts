@@ -688,14 +688,14 @@ export function removeExactSyncedMemories(
 export function searchMemories(
   dbManager: DatabaseManager,
   query: string,
-  options: { project?: string; target?: string; category?: MemoryCategory; limit?: number } = {}
+  options: { project?: string | null; activeProject?: string; target?: string; category?: MemoryCategory; limit?: number } = {}
 ): SqliteMemoryEntry[] {
   if (query.trim().length === 0) {
     return [];
   }
 
   const db = dbManager.getDb();
-  const { project, target, category, limit = 10 } = options;
+  const { project, activeProject, target, category, limit = 10 } = options;
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -720,6 +720,9 @@ export function searchMemories(
         conditions.push('m.project = ?');
         params.push(project);
       }
+    } else if (activeProject) {
+      conditions.push('(m.project IS NULL OR m.project = ?)');
+      params.push(activeProject);
     }
 
     if (target) {

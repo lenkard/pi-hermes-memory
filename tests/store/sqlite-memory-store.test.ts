@@ -465,6 +465,17 @@ describe('sqlite-memory-store', () => {
       assert.ok(results.every(r => r.project === 'project-a'));
     });
 
+    it('includes global and Active Project rows while excluding other projects', () => {
+      addMemory(dbManager, 'shared Prisma convention', 'memory', null);
+      addMemory(dbManager, 'project-b Prisma convention', 'memory', 'project-b');
+
+      const results = searchMemories(dbManager, 'Prisma', { activeProject: 'project-a' });
+
+      assert.ok(results.some((entry) => entry.project === null));
+      assert.ok(results.some((entry) => entry.project === 'project-a'));
+      assert.ok(results.every((entry) => entry.project === null || entry.project === 'project-a'));
+    });
+
     it('should filter by target', () => {
       const results = searchMemories(dbManager, 'Chandrateja OR AEST', { target: 'user' });
       assert.ok(results.length > 0);
